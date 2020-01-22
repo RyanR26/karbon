@@ -1,0 +1,38 @@
+{
+  "name": "karbon",
+  "version": "0.0.1",
+  "description": "JS UI framework with state mangement",
+  "main": "app.js",
+  "scripts": {
+    "build": "export BABEL_ENV=rollup; rollup -c -w",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RyanR26/karbon"
+  },
+  "keywords": [
+    "js",
+    "framework",
+    "virtual dom",
+    "state management"
+  ],
+  "author": "Ryan Rudman",
+  "license": "ISC",
+  "homepage": "hhttps://github.com/RyanR26/karbon/blob/master/README.md",
+  "devDependencies": {
+    "babel-core": "^6.26.3",
+    "babel-helpers": "^6.24.1",
+    "babel-preset-env": "^1.7.0",
+    "babel-preset-es2015-rollup": "^3.0.0",
+    "jest": "^23.5.0",
+    "rollup": "^0.58.2",
+    "rollup-plugin-babel": "^3.0.4",
+    "rollup-plugin-eslint": "^4.0.0",
+    "rollup-plugin-gzip": "^1.3.0",
+    "rollup-plugin-json": "^2.3.0",
+    "rollup-plugin-server": "^0.7.0",
+    "rollup-plugin-strip-code": "^0.2.7",
+    "rollup-plugin-uglify": "^3.0.0"
+  }
+}

@@ -1,2 +1,1 @@
-# karbon
-JS framework for building web interfaces
+# My project's README
