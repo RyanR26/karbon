@@ -34,7 +34,7 @@ import { run } from karbon;
  
 const app = {
 	container: document.getElementById('app'),
-		state: {
+	state: {
 	 	name: 'Ryan'
 	},
 	view: state => (e, x) => {
