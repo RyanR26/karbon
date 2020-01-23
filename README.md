@@ -35,11 +35,11 @@ import { run } from karbon;
 const app = {
 	container: document.getElementById('app'),
 	state: {
-		name: 'Ryan'
+	 name: 'Ryan'
 	},
 	view: state => (e, x) => {
-		e('div', { text: 'Hello' + state.name })
-		x('div') 			
+	 e('div', { text: 'Hello' + state.name })
+	 x('div') 			
 	}
 };
 
@@ -102,14 +102,14 @@ close(tagName)
 // example of common el props
 
 e('div', { 
-	text: 'text',
-	id: 'id',
-	class: ['class1', 'class2'],
-	dataAttrs: ['data-name=Harry','data-surname=Jones'],
-	style: {color: 'red', 'font-weight': 'bold'}
-	onclick: [actions.example.click, 'arg1', 'arg2']
-	}, 
-	{ key: 'uniqueId'}
+ text: 'text',
+ id: 'id',
+ class: ['class1', 'class2'],
+ dataAttrs: ['data-name=Harry','data-surname=Jones'],
+ style: {color: 'red', 'font-weight': 'bold'}
+ onclick: [actions.example.click, 'arg1', 'arg2']
+ }, 
+ { key: 'uniqueId'}
 );
 x('div')
 
@@ -120,25 +120,24 @@ x('div')
 	
 // ES5
 var app = {
-	...
-	view: function(state, actions) {
-		return function(e, x, c) {
-			e('div', { text: 'text'}); 
-				e('span', { text: 'nested elemenet' }); x('span')
-			x('div') 
-		}
-	} 
+ ...
+ view: function(state, actions) {
+  return function(e, x, c) {
+   e('div', { text: 'text'}); 
+    e('span', { text: 'nested elemenet' }); x('span')
+   x('div') 
+  }
+ } 
 };
 
 // We can shorten this nicely using the ES6 syntax
 const app = {
-	...
-	view: (state, actions) => (e, x, c) => {
-			e('div', { text: 'text'}); 
-				e('span', { text: 'nested elemenet' }); x('span')
-			x('div') 
-		}
-	} 
+ ...
+ view: (state, actions) => (e, x, c) => {
+  e('div', { text: 'text'}); 
+   e('span', { text: 'nested elemenet' }); x('span')
+   x('div') 
+ }
 };
 
 ```
@@ -149,20 +148,19 @@ Because of this we are not constrained or conformed to lengthly work arounds whe
 - conditional logic:
 ```js
 const app = {
-	...
-	state: {
-		loggedIn: false
-		userName: ''
-	},
-	view: (state, actions) => (e, x, c) => {
-			if(state.loggedIn) {
-				e('div', { text: 'hello' + state.userName}); x('div') 
-			} else {
-				e('div', { text: 'Please login'}); x('div') 
-			}
-		}
-	} 
-};
+ ...
+ state: {
+  loggedIn: false
+  userName: ''
+ },
+ view: (state, actions) => (e, x, c) => {
+  if(state.loggedIn) {
+   e('div', { text: 'hello' + state.userName}); x('div') 
+  } else {
+   e('div', { text: 'Please login'}); x('div') 
+  }
+ }
+}; 
 
 ```
 
@@ -178,9 +176,9 @@ Example of basic component:
 ```js
 
 const Title = (props, actions, index) => (e, x, c) => {
-	e('div', { class: ['component']})
-		e('h1', { text: props.title }); x('h1')
-	x('div')
+ e('div', { class: ['component']})
+  e('h1', { text: props.title }); x('h1')
+ x('div')
 }
 ```
 
@@ -258,4 +256,5 @@ const app = {
 };
 
 ```
+
 
