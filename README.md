@@ -19,11 +19,12 @@ It has zero-dependencies and does not require compilation or tooling. It can sim
  - Zero dependencies
  - No compilation
  - Small size (~8k gz) 
+ - VDOM
  - Unique API
  - Single state app
- - VDOM
+ -  Effects api
  - Subscriptions API
- 
+
  
  ### API overview
  ---
@@ -361,7 +362,6 @@ state: {
 
 ------------
 
-
 So far we have seen how to render html via our view function, vnodes and components but in order for app to do anything we need to be able to run something in response to user events.  This brings us to the *actions*.
 
 Actions can be global (available in every component) or can be injected on a component level.
@@ -441,9 +441,54 @@ run(app)
 In this example we have removed the global actions and instead passed them to the Hello component via the actions property. These are local actions ie. they are only available within the component you pass them into. We can pass mulitple actions by using an array:
 
 ```js
-actions: [
-  { local },
-  { local2 }
- ]
+c({ Hello }, {
+      props: { name: state.name },
+      actions: [ { local }, { local2 }, { local3 } ],
+      subscribe: [ 'name' ]
+    });
 ```
+
+
+At this point our action is not actully doing anything but logging the value passed into it. What makes Karbon substantially different form other frameworks is the way it handles all app updates. The dispatch methods are at the core of how the framework handles change flow and gives the developer complete control of how to sequence updates without resorting to spaghetti code, nested callbacks, middleware etc. Karbon uses a messaging system to propogate any state changes, run effects or add control logic to a dispatch sequence. These messages are passed in sequence to the framework runtime where they are handled automatically.
+Lets start with a simple example of updating a state value.
+
+```js
+import { run } from karbon;
+
+// actions
+const local = dispatch => ({
+  changeName: name => 
+    dispatch.msgs(['state', {
+        path: ['name'],
+        value: name
+    }])
+});
+
+// component
+const Hello = (props, actions) => (e, x) => {
+  e('div', { 
+    text: 'Hello' + state.name, 
+    onclick: [ actions.local.changeName, 'John' ] 
+  });
+  x('div')
+};
+ 
+const app = {
+  container: document.getElementById('app'),
+  state: {
+    name: 'Ryan'
+  },
+  actions: [ ],
+  view: (state, actions) => (e, x) => {
+    c({ Hello }, {
+      props: { name: state.name },
+      actions: { local },
+      subscribe: [ 'name' ]
+    });
+  }
+};
+
+run(app)
+```
+
 
