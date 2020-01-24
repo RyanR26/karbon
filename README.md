@@ -35,11 +35,11 @@ import { run } from karbon;
 const app = {
   container: document.getElementById('app'),
   state: {
-	  name: 'Ryan'
+    name: 'Ryan'
   },
   view: state => (e, x) => {
-	  e('div', { text: 'Hello' + state.name })
-    x('div') 			
+    e('div', { text: 'Hello' + state.name })
+  x('div') 			
   }
 };
 
@@ -122,11 +122,11 @@ x('div')
 var app = {
   ...
   view: function(state, actions) {
-	  return function(e, x, c) {
-		  e('div', { text: 'text'}); 
-			  e('span', { text: 'nested elemenet' }); x('span')
-		  x('div') 
-	  }
+    return function(e, x, c) {
+      e('div', { text: 'text'}); 
+        e('span', { text: 'nested elemenet' }); x('span')
+      x('div') 
+    }
   } 
 };
 
@@ -134,9 +134,9 @@ var app = {
 const app = {
   ...
   view: (state, actions) => (e, x, c) => {
-	  e('div', { text: 'text'}); 
-		  e('span', { text: 'nested elemenet' }); x('span')
-	  x('div') 
+    e('div', { text: 'text'}); 
+      e('span', { text: 'nested elemenet' }); x('span')
+    x('div') 
   }
 };
 
@@ -150,15 +150,15 @@ Because of this we are not constrained or conformed to lengthly work arounds whe
 const app = {
   ...
   state: {
-	  loggedIn: false
-	  userName: ''
+    loggedIn: false
+    userName: ''
   },
   view: (state, actions) => (e, x, c) => {
-	  if(state.loggedIn) {
-		  e('div', { text: 'hello' + state.userName}); x('div') 
-	  } else {
-		  e('div', { text: 'Please login'}); x('div') 
-	  }
+    if(state.loggedIn) {
+      e('div', { text: 'hello' + state.userName}); x('div') 
+    } else {
+      e('div', { text: 'Please login'}); x('div') 
+    }
   }
 }; 
 
@@ -192,10 +192,10 @@ import { Title } from components;
 const app = {
   ...
   view: (state, actions) => (e, x, c) => {
-	  c({ Title }, { 
-		  props: { title: state.title }
-	  });
-	}
+    c({ Title }, { 
+      props: { title: state.title }
+    });
+  }
 };
 
 ```
@@ -207,17 +207,17 @@ mergeStateToProps example:
 
 const DeeplyNestedComp = (props, actions, index) => (e, x, c) => {
   e('div', { 
-	  class: ['container'],
-	  style: props.theme
+    class: ['container'],
+    style: props.theme
   });
-	  e('div', { text: props.name }); x('div')
+    e('div', { text: props.name }); x('div')
   x('div')
 }
 
 const Parent (props, actions, index) => (e, x, c) => {
   e('div')
     c({ DeeplyNestedComp }, {
-	    props: { name: 'John' },
+      props: { name: 'John' },
       mergeStateToProps: state  =>  ({ theme: state.themes.light })
     })
   x('div')
@@ -237,22 +237,20 @@ const Item = (props, actions, index) => (e, x, c) => {
 const app = {
   ...
   state: {
-	  list: [
-	  { name: 'John'},
-	  { name: 'Harry'},
-	  { name: 'Elvis'}
-	  ]
+    list: [
+      { name: 'John'},
+      { name: 'Harry'},
+      { name: 'Elvis'}
+    ]
   },
-  view: (state, actions) => (e, x, c) => {
-			
-		  state.list.map((item, index) => {
-			  c({ Item }, { 
-				  props: {name: item.name},
-				  index
-			  });
-		  });
-		}
-	} 
+  view: (state, actions) => (e, x, c) => {			
+    state.list.map((item, index) => {
+      c({ Item }, { 
+        props: {name: item.name},
+	index
+      });
+    });
+  }
 };
 
 ```
