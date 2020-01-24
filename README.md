@@ -69,13 +69,23 @@ run(app1, app2, app3)
 
 **Container**
 
+------------
+
+
+
 The container value must be a valid DOM node. This will be the root of the app. If the container element contains any server rendered html it will be cleared out automatically before the app view is rendered to the document. In the case of multi apps on a single page - the container must be a unique node for each app.
 
 **State**
 
+------------
+
+
 This value is the initial application state. This must be an object. This value will get passed, as application level props, to the view function upon rendering. 
 
 **View**
+
+------------
+
 
 The view function creates virtual nodes (vnode) which make up the virtual dom tree. Each vnode will eventually generate an actually dom node which the browser can display. 
 
@@ -94,7 +104,6 @@ The vnode creation api is unique to Karbon. It does not support JSX or any other
 - vnode signature:
 
 ```js
-
 // signature
 open(tagName:string, props:obj, flags:obj);
 close(tagName)
@@ -107,7 +116,7 @@ e('div', {
   class: ['class1', 'class2'],
   dataAttrs: ['data-name=Harry','data-surname=Jones'],
   style: {color: 'red', 'font-weight': 'bold'}
-  onclick: [actions.example.click, 'arg1', 'arg2']
+  onclick: [actions.example.click, 'arg1', 'arg2'] // always an array with the function at position 1 and any arguments listed after.
 }, 
   { key: 'uniqueId' }
 );
@@ -147,6 +156,7 @@ Because of this we are not constrained or conformed to lengthly work arounds whe
 - conditional logic:
 
 ```js
+
 const app = {
   ...
   state: {
@@ -207,6 +217,7 @@ c({ Comp } , {
 In use:
 
 ```js
+
 import { Title } from components;
 
 const app = {
@@ -249,13 +260,16 @@ Karbon has a built in method ***propTypes*** which can be used to check if the t
 propTypes example:
 
 ```js
+
 c({ DeeplyNestedComp }, {
-      props: { name: 'John' },
-      mergeStateToProps: state  =>  ({ theme: state.themes.light }),
-      propTypes: types => ({
-        name: types.string,
-        theme: types.object
-      })}
+  props: { name: 'John' },
+  mergeStateToProps: state  => ({ 
+    theme: state.themes.light
+  }),
+  propTypes: types => ({
+    name: types.string,
+    theme: types.object
+  })}
 });
 
 ```
@@ -322,9 +336,14 @@ The subscribe array is only for top level keys. All children of that property ar
 For example: if a component subscribes to the *themes* key, when any change occurs on a child of themes the component will check for updates. In contrast, if a changed was made to the *list* property the component would skip the update check.
 
 ```js
+
+// components listen to changes on all children of top level keys only.
+// [ 'listen' ] or [ ' themes' ] or multiple keys [ 'listen', 'themes'] but
+// you cannot subscribe to a sub key eg. [ 'themes.light.color ']
+
 state: {
-  list: [ ],
-  themes: {
+  list: [ ],  // here
+  themes: { // here
     light: {
       color: 'black',
       background: 'white'
@@ -335,4 +354,96 @@ state: {
     }
   }
 }
+
 ```
+
+**Actions**
+
+------------
+
+
+So far we have seen how to render html via our view function, vnodes and components but in order for app to do anything we need to be able to run something in response to user events.  This brings us to the *actions*.
+
+Actions can be global (available in every component) or can be injected on a component level.
+
+Global actions example:
+```js
+import { run } from karbon;
+
+const global = dispatch => ({
+  changeName(name) {
+    console.log('change name to' + name)
+  }
+});
+ 
+const app = {
+  container: document.getElementById('app'),
+  state: {
+    name: 'Ryan'
+  },
+  actions: [
+    { global }
+  ]
+  view: (state, actions) => (e, x) => {
+    e('div', { 
+      text: 'Hello' + state.name, 
+      onclick: [ actions.global.changeName, 'John' ] 
+   });
+   x('div')
+  }
+};
+
+run(app)
+```
+
+Actions are functions that receive the *dispatch*  object (more about this later) as an argument and return methods that can be invoked from within our view. They are initialised by adding them to the actions array on the app object. Actions are created once and then cached.
+
+As you can see in the above example the view function now takes actions as a 2nd parameter and we can access actions via the relevant actions namespace inside our view. Multiple actions can be added via the array syntax. These can now be accessed in any component within our app.
+
+Local actions example:
+```js
+import { run } from karbon;
+
+// actions
+const local = dispatch => ({
+  changeName(name) {
+    console.log('change name to' + name)
+  }
+});
+
+// component
+const Hello = (props, actions) => (e, x) => {
+  e('div', { 
+    text: 'Hello' + state.name, 
+    onclick: [ actions.local.changeName, 'John' ] 
+  });
+  x('div')
+};
+ 
+const app = {
+  container: document.getElementById('app'),
+  state: {
+    name: 'Ryan'
+  },
+  actions: [ ],
+  view: (state, actions) => (e, x) => {
+    c({ Hello }, {
+      props: { name: state.name },
+      actions: { local },
+      subscribe: [ 'name' ]
+    });
+  }
+};
+
+run(app)
+```
+
+In this example we have removed the global actions and instead passed them to the Hello component via the actions property. These are local actions ie. they are only available within the component you pass them into. We can pass mulitple actions by using an array:
+
+```js
+actions: [
+  { local },
+  { local2 }
+ ]
+```
+
