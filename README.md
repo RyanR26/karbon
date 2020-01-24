@@ -92,6 +92,7 @@ The vnode creation api is unique to Karbon. It does not support JSX or any other
 *Above vnode functions shortened to **e, x, c** in the examples below but could be named anything the user desires.*
 
 - vnode signature:
+
 ```js
 
 // signature
@@ -116,7 +117,6 @@ x('div')
 
 
 ```js
-	
 // ES5
 var app = {
   ...
@@ -145,6 +145,7 @@ These functions allow you to write vnodes as you would normal html elements (ie.
 Because of this we are not constrained or conformed to lengthly work arounds when writing conditional logic. We can use standard JS logic right along side vnode factory functions.
 
 - conditional logic:
+
 ```js
 const app = {
   ...
@@ -186,6 +187,26 @@ A component takes ***props***, ***actions*** and ***index*** as arguments and re
 *Rendering a component*
 
 ```js
+
+// component constructor signature
+/*
+ The function takes 2 arguments. Both are objects. The 1st is a named  component definition. The name can be the same as the comp name.
+ The 2nd is an object with the below available properties and methods
+ */
+
+c({ Comp } , {
+  props: { },
+  mergStateToProps: state => ({ }),
+  propTypes: types => ({ }),
+  index: 1,
+  subscribe: [ ],
+  actions: { } || [ ],
+});
+
+```
+In use:
+
+```js
 import { Title } from components;
 
 const app = {
@@ -198,7 +219,7 @@ const app = {
 };
 
 ```
-Props are read only values passed into the component from when the component is invoked. This is a familiar pattern used in most UI frameworks nowadays. This pattern can get a little messy when trying to pass props from a parent component to a deeply nested child component when the props are not needed by the intermediate components. This has become known as prop-drilling and other frameworks have ways of dealing with this usually via a context provider function. Karbon deals with this by providing a ***mergeStateToProps*** method which can be passed to the component factory function and invoked by the runtime.
+***Props*** is an object of read only values passed into the component from when the component is invoked. This is a familiar pattern used in most UI frameworks nowadays. This pattern can get a little messy when trying to pass props from a parent component to a deeply nested child component when the props are not needed by the intermediate components. This has become known as prop-drilling and other frameworks have ways of dealing with this usually via a context provider function. Karbon deals with this by providing the ***mergeStateToProps*** method which can be passed to the component factory function and invoked by the runtime. It must return an object which will get merged in with the defined component props object. This allows us to pull properties from the state at any nested level.
 
 mergeStateToProps example:
 
@@ -218,14 +239,28 @@ const Parent (props, actions, index) => (e, x, c) => {
     c({ DeeplyNestedComp }, {
       props: { name: 'John' },
       mergeStateToProps: state  =>  ({ theme: state.themes.light })
-    })
+    });
   x('div')
 }
 
+```
+Karbon has a built in method ***propTypes*** which can be used to check if the type is correct and log a warning otherwise. This is only available in the dev build ie. the non-minified version.
+
+propTypes example:
+
+```js
+c({ DeeplyNestedComp }, {
+      props: { name: 'John' },
+      mergeStateToProps: state  =>  ({ theme: state.themes.light }),
+      propTypes: types => ({
+        name: types.string,
+        theme: types.object
+      })}
+});
 
 ```
 
-If a component is used inside a loop then the index value should be passed to the component constructor. This is used by the app runtime to track instances.
+If a component is used inside a loop then the ***index*** value should be passed to the component constructor. This is used by the app runtime to track instances.
 
 ```js
 
@@ -242,11 +277,11 @@ const app = {
       { name: 'Elvis'}
     ]
   },
-  view: (state, actions) => (e, x, c) => {			
+  view: (state, actions) => (e, x, c) => {
     state.list.map((item, index) => {
       c({ Item }, { 
         props: {name: item.name},
-	index
+        index
       });
     });
   }
@@ -254,4 +289,50 @@ const app = {
 
 ```
 
+As components are usually only used to display a specific portion of that entire app state we can optimize performance by telling our component to only update in response to specific state key changes. The ***subscribe*** property lets us list which top level state keys the component should listen to changes on.
 
+*It is important to note that this is simply for optimization purposes and that if you do not want the component display to ever change the props it recieves should be static. This is because in certain cases the runtime will determine that the component needs to be rerendered to keep the UI in sync even though it is not subscribed to the current changing key.*
+
+subscibe example:
+
+```js
+const app = {
+  ...
+  state: {
+    list: [
+      { name: 'John'},
+      { name: 'Harry'},
+      { name: 'Elvis'}
+    ]
+  },
+  view: (state, actions) => (e, x, c) => {
+    state.list.map((item, index) => {
+      c({ Item }, { 
+        props: {name: item.name},
+        index,
+        subscribe: [ 'list' ]
+      });
+    });
+  }
+};
+
+```
+The subscribe array is only for top level keys. All children of that property are included.
+
+For example: if a component subscribes to the *themes* key, when any change occurs on a child of themes the component will check for updates. In contrast, if a changed was made to the *list* property the component would skip the update check.
+
+```js
+state: {
+  list: [ ],
+  themes: {
+    light: {
+      color: 'black',
+      background: 'white'
+    },
+    dark: {
+      color: 'white',
+      background: 'black'
+    }
+  }
+}
+```
