@@ -38,8 +38,7 @@ const app = {
     name: 'Ryan'
   },
   view: state => (e, x) => {
-    e('div', { text: 'Hello' + state.name })
-  x('div') 			
+    e('div', { text: 'Hello' + state.name }); x('div') 			
   }
 };
 
