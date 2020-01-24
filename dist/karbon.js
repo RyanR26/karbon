@@ -929,7 +929,8 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 		// Check defined prop types //
 		if (isFunction(data.propTypes)) {
-			checkPropTypes(data.props, data.propTypes(propTypes), viewRef);
+
+			checkPropTypes(propsFromState ? Object.assign({}, data.props, propsFromState) : data.props, data.propTypes(propTypes), viewRef);
 		}
 
 		/* END.DEV_ONLY */
