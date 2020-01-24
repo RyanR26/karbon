@@ -33,14 +33,14 @@ It has zero-dependencies and does not require compilation or tooling. It can sim
 import { run } from karbon;
  
 const app = {
-	container: document.getElementById('app'),
-	state: {
-	 	name: 'Ryan'
-	},
-	view: state => (e, x) => {
-	 	e('div', { text: 'Hello' + state.name })
-	 	x('div') 			
-	}
+  container: document.getElementById('app'),
+  state: {
+	  name: 'Ryan'
+  },
+  view: state => (e, x) => {
+	  e('div', { text: 'Hello' + state.name })
+	  x('div') 			
+  }
 };
 
 run(app)
@@ -102,14 +102,14 @@ close(tagName)
 // example of common el props
 
 e('div', { 
-	text: 'text',
-	id: 'id',
-	class: ['class1', 'class2'],
-	dataAttrs: ['data-name=Harry','data-surname=Jones'],
-	style: {color: 'red', 'font-weight': 'bold'}
-	onclick: [actions.example.click, 'arg1', 'arg2']
- }, 
- { key: 'uniqueId' }
+  text: 'text',
+  id: 'id',
+  class: ['class1', 'class2'],
+  dataAttrs: ['data-name=Harry','data-surname=Jones'],
+  style: {color: 'red', 'font-weight': 'bold'}
+  onclick: [actions.example.click, 'arg1', 'arg2']
+}, 
+  { key: 'uniqueId' }
 );
 x('div')
 
@@ -124,9 +124,9 @@ var app = {
 	view: function(state, actions) {
 		return function(e, x, c) {
 			e('div', { text: 'text'}); 
-			e('span', { text: 'nested elemenet' }); x('span')
+			  e('span', { text: 'nested elemenet' }); x('span')
 			x('div') 
-	}
+	  }
 	} 
 };
 
@@ -176,9 +176,9 @@ Example of basic component:
 ```js
 
 const Title = (props, actions, index) => (e, x, c) => {
-	e('div', { class: ['component']})
-		e('h1', { text: props.title }); x('h1')
-	x('div')
+  e('div', { class: ['component']})
+    e('h1', { text: props.title }); x('h1')
+  x('div')
 };
 ```
 
