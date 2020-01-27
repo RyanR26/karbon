@@ -37,7 +37,7 @@ export const createDomElement = node => {
 				else { // add data attrs
 					for(let i = 0; i < value.length; i++) {
 						const attrParts = value[i].split('=');
-						el.setAttribute(attrParts[0], attrParts[1]);
+						el.setAttribute('data-' + attrParts[0], attrParts[1] || '');
 					}
 				}
 			} else { // Object
