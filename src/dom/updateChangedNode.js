@@ -54,7 +54,7 @@ export const updateChangedNode = (prop, value, node) => {
 		// add new data attrs
 		for(let i = 0; i < value.length; i++) {
 			const attrParts = value[i].split('=');
-			node.setAttribute(attrParts[0], attrParts[1]);
+			node.setAttribute('data-' + attrParts[0], attrParts[1] || '');
 		}
 		break;
 	default:
