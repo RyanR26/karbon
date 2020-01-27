@@ -1,6 +1,5 @@
 import { isNull } from '../utils/utils';
 
-
 let elProps; 
 
 export const createVNode = (type, parentComponentIndex, data, level, key=false, staticChildren, parentComponent, subscribesTo, renderingSvg) => {

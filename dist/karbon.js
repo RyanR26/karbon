@@ -996,7 +996,7 @@ var createDomElement = function createDomElement(node) {
 					// add data attrs
 					for (var _i = 0; _i < value.length; _i++) {
 						var attrParts = value[_i].split('=');
-						el.setAttribute(attrParts[0], attrParts[1]);
+						el.setAttribute('data-' + attrParts[0], attrParts[1] || '');
 					}
 				}
 			} else {
@@ -1301,7 +1301,7 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 			// add new data attrs
 			for (var _i2 = 0; _i2 < value.length; _i2++) {
 				var attrParts = value[_i2].split('=');
-				node.setAttribute(attrParts[0], attrParts[1]);
+				node.setAttribute('data-' + attrParts[0], attrParts[1] || '');
 			}
 			break;
 		default:

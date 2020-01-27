@@ -449,8 +449,17 @@ c({ Hello }, {
 ```
 
 
-At this point our action is not actully doing anything but logging the value passed into it. What makes Karbon substantially different form other frameworks is the way it handles all app updates. The dispatch methods are at the core of how the framework handles change flow and gives the developer complete control of how to sequence updates without resorting to spaghetti code, nested callbacks, middleware etc. Karbon uses a messaging system to propogate any state changes, run effects or add control logic to a dispatch sequence. These messages are passed in sequence to the framework runtime where they are handled automatically.
-Lets start with a simple example of updating a state value.
+At this point our action is not actully doing anything but logging the value passed into it. What makes Karbon substantially different form other frameworks is the way it handles all app updates. The dispatch methods are at the core of how the framework handles change flow and gives the developer complete control of how to sequence updates without resorting to spaghetti code, nested callbacks, middleware etc.  The 3 chainable dispatch methods are:
+
+```js
+dispatch
+  .stamp()
+  .msgs()
+  .done()
+```
+Karbon uses a messaging system to propogate any state changes, run effects or add control logic to a dispatch sequence. These messages are passed in sequence to the framework runtime where they are handled automatically.
+
+Lets start with a simple example of updating the state. 
 
 ```js
 import { run } from karbon;
@@ -490,5 +499,41 @@ const app = {
 
 run(app)
 ```
+In order to update our app state we need to dispatch a message via the `dispatch.msgs()` method. A message is a plain array which containes the message type and a payload. In this case our message type is *state* and our payload is an object which contains the path to the state property we want to update and the new value we want to display.
 
+```js
+dispatch.msgs(
+  ['state', {
+    path: ['name'],
+    value: name
+}])
+```
+This differs from other frameworks where you always need to return a new state object (which can get tricky with deeply nested values). Karbon takes the state message and uses it to update the state in a predictable manner. We never update/mutate the state ourselves but rather always send a message and let the runtime take care of it automaticallty. This system allows us to update deeply nested state values witjh ease.
 
+```js
+
+state: {
+  themes: {
+    light: {
+      color: 'black',
+      background: 'white',
+      border: '1px solid black'
+    }
+  }
+}
+
+dispatch.msgs(
+  ['state', {
+    path: ['themes', 'light', 'color'],
+    value: 'red'
+}])
+```
+Multiple values can be updated using arrays:
+
+```js
+dispatch.msgs(
+  ['state', {
+    path: ['themes', 'light', ['color', 'background'],
+    value: ['red', 'black']
+}])
+```
