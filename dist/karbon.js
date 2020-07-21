@@ -78,6 +78,14 @@ var isNotFalse = function isNotFalse(value) {
 	return value !== false;
 };
 
+var isEmpty = function isEmpty(value) {
+	return value === '';
+};
+
+var isNotEmpty = function isNotEmpty(value) {
+	return value !== '';
+};
+
 var isFunction = function isFunction(value) {
 	return typeof value === 'function';
 };
@@ -86,9 +94,7 @@ var isObject = function isObject(value) {
 	return (typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object';
 };
 
-var isArray = function isArray(value) {
-	return isNull(value) ? false : isObject(value) && isDefined(value.length);
-};
+var isArray = Array.isArray;
 
 var isNumber = function isNumber(value) {
 	return typeof value === 'number';
@@ -102,6 +108,12 @@ var randomStringId = function randomStringId() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(2, 10);
 };
 
+var clearObject = function clearObject(obj) {
+	for (var prop in obj) {
+		delete obj[prop];
+	}
+};
+
 var arraysAreEqual = function arraysAreEqual(arr1, arr2) {
 	var arr1Length = arr1.length;
 	var arr2Length = arr2.length;
@@ -112,7 +124,6 @@ var arraysAreEqual = function arraysAreEqual(arr1, arr2) {
 	return true;
 };
 
-var isArr = Array.isArray;
 var keyList = Object.keys;
 var hasProp = Object.prototype.hasOwnProperty;
 
@@ -120,8 +131,8 @@ var objsAreEqual = function objsAreEqual(a, b) {
 	if (a === b) return true;
 
 	if (a && b && (typeof a === 'undefined' ? 'undefined' : _typeof(a)) == 'object' && (typeof b === 'undefined' ? 'undefined' : _typeof(b)) == 'object') {
-		var arrA = isArr(a);
-		var arrB = isArr(b);
+		var arrA = isArray(a);
+		var arrB = isArray(b);
 		var i = void 0;
 		var length = void 0;
 		var key = void 0;
@@ -186,46 +197,6 @@ var propTypes = {
 	undefined: 'undefined'
 };
 
-// requestAnimationFrame() shim by Paul Irish
-window.requestAnimFrame = function () {
-	return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.oRequestAnimationFrame || window.msRequestAnimationFrame || function ( /* function */callback) {
-		window.setTimeout(callback, 1000 / 60);
-	};
-}();
-
-/**
- * Behaves the same as setTimeout except uses requestAnimationFrame() where possible for better performance
- * @param {function} fn The callback function
- * @param {int} delay The delay in milliseconds
- */
-
-window.requestTimeout = function (fn, delay) {
-	if (!window.requestAnimationFrame && !window.webkitRequestAnimationFrame && !(window.mozRequestAnimationFrame && window.mozCancelRequestAnimationFrame) && // Firefox 5 ships without cancel support
-	!window.oRequestAnimationFrame && !window.msRequestAnimationFrame) return window.setTimeout(fn, delay);
-
-	var start = new Date().getTime(),
-	    handle = new Object();
-
-	function loop() {
-		var current = new Date().getTime(),
-		    delta = current - start;
-
-		delta >= delay ? fn.call() : handle.value = window.requestAnimFrame(loop);
-	}
-
-	handle.value = window.requestAnimFrame(loop);
-	return handle;
-};
-
-/**
- * Behaves the same as clearTimeout except uses cancelRequestAnimationFrame() where possible for better performance
- * @param {int|object} fn The callback function
- */
-window.clearRequestTimeout = function (handle) {
-	window.cancelAnimationFrame ? window.cancelAnimationFrame(handle.value) : window.webkitCancelAnimationFrame ? window.webkitCancelAnimationFrame(handle.value) : window.webkitCancelRequestAnimationFrame ? window.webkitCancelRequestAnimationFrame(handle.value) : /* Support for legacy API */
-	window.mozCancelRequestAnimationFrame ? window.mozCancelRequestAnimationFrame(handle.value) : window.oCancelRequestAnimationFrame ? window.oCancelRequestAnimationFrame(handle.value) : window.msCancelRequestAnimationFrame ? window.msCancelRequestAnimationFrame(handle.value) : clearTimeout(handle);
-};
-
 var virtualDom = function () {
 
 	var initialized = false;
@@ -278,6 +249,7 @@ var createRunTime = function createRunTime(app, appId) {
 	var sequenceCounter = 0;
 	var updatesQueue = {};
 	var callbacks = {};
+	var _ = undefined;
 
 	var setState = function setState(state) {
 		appState = state;
@@ -292,11 +264,11 @@ var createRunTime = function createRunTime(app, appId) {
 		var callbackData = null;
 		var sequenceCompleted = null;
 		var stampId = void 0;
-		var priority = void 0;
+		var cache = void 0;
 
 		var stamp = function stamp(data) {
 			stampId = data.id;
-			priority = data.priority;
+			cache = data.cache;
 			return {
 				msgs: messages
 			};
@@ -310,21 +282,20 @@ var createRunTime = function createRunTime(app, appId) {
 			callbackData = null;
 			sequenceCounter++;
 			var sequenceId = (stampId || randomStringId()) + '_' + sequenceCounter;
-			var priorityDispatch = priority ? true : false;
+			var sequenceCache = Object.assign({}, cache);
+			cache = undefined;
 			stampId = undefined;
 
 			/* START.DEV_ONLY */
-			if (isDefined(appTap.dispatch)) {
-				appTap.dispatch({ msgs: msgs, sequenceId: sequenceId });
-			}
+			if (isDefined(appTap.dispatch)) appTap.dispatch({ msgs: msgs, sequenceId: sequenceId });
 			/* END.DEV_ONLY */
 
-			window.requestTimeout(function () {
-				createSequenceArray(sequenceId, msgs, priorityDispatch);
+			window.setTimeout(function () {
+				createSequenceArray(sequenceId, msgs, sequenceCache);
 			}, 0);
 
 			return {
-				done: done(sequenceId, priorityDispatch)
+				done: done(sequenceId)
 			};
 		};
 
@@ -351,23 +322,23 @@ var createRunTime = function createRunTime(app, appId) {
 		};
 	}();
 
-	var createSequenceArray = function createSequenceArray(sequenceId, msgs) {
+	var createSequenceArray = function createSequenceArray(sequenceId, msgs, sequenceCache) {
 		updatesQueue[sequenceId] = [];
 		for (var i = 1; i < msgs.length; i++) {
 			updatesQueue[sequenceId][i - 1] = msgs[i];
 		}
-		processMsg(sequenceId, msgs[0]);
+		processMsg(sequenceId, msgs[0], _, sequenceCache);
 	};
 
 	var exeQueuedMsgs = function exeQueuedMsgs(data, sequenceId) {
 		var sequenceCompleted = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
+		var sequenceCache = arguments[3];
 
 
 		if (isDefined(sequenceId)) {
 
 			if (updatesQueue[sequenceId].length > 0) {
-				// const msg = updatesQueue[sequenceId].shift();
-				processMsg(sequenceId, updatesQueue[sequenceId].shift(), data);
+				processMsg(sequenceId, updatesQueue[sequenceId].shift(), data, sequenceCache);
 			} else {
 				delete updatesQueue[sequenceId];
 				if (isFunction(callbacks[sequenceId])) {
@@ -381,22 +352,22 @@ var createRunTime = function createRunTime(app, appId) {
 		}
 	};
 
-	var processMsg = function processMsg(sequenceId, msg, data) {
+	var processMsg = function processMsg(sequenceId, msg, data, sequenceCache) {
 
-		var msgArray = !isFunction(msg) ? msg : isDefined(data) ? msg(data, getState()) : msg(getState());
+		var msgArray = !isFunction(msg) ? msg : isDefined(data) ? msg(data === 'undefined' ? undefined : data, getState(), sequenceCache) : msg(getState(), sequenceCache);
 
 		// allow for conditional msgs
 		if (isNull(msgArray)) {
-			exeQueuedMsgs(undefined, sequenceId);
+			exeQueuedMsgs(null, sequenceId, _, sequenceCache);
+		} else if (isUndefined(msgArray)) {
+			exeQueuedMsgs('undefined', sequenceId, _, sequenceCache);
 		} else {
 
 			var msgPayload = msgArray[1];
 			var renderFlags = msgArray[2] || {};
 
 			/* START.DEV_ONLY */
-			if (isDefined(appTap.message)) {
-				appTap.message({ msg: msgArray, sequenceId: sequenceId });
-			}
+			if (isDefined(appTap.message)) appTap.message({ msg: msgArray, sequenceId: sequenceId });
 			/* END.DEV_ONLY */
 
 			// msgArray[0] === msgType
@@ -416,14 +387,15 @@ var createRunTime = function createRunTime(app, appId) {
 							virtualDom.constrainDomUpdates(false);
 						}
 
-						updateState(msgPayload, sequenceId, renderFlags.preventRender ? true : false);
+						runUpdate(msgPayload, sequenceId, renderFlags.preventRender ? true : false, sequenceCache);
 					}
 					break;
 
 				case 'effect':
 					{
 
-						var effectName = msgPayload.name;
+						var effectCacheKey = msgPayload.cache;
+						var effectName = msgPayload.name || msgPayload.def;
 						var effectFun = isFunction(effectName) ? effectName : isDefined(appFx[effectName]) ? appFx[effectName] : function () {
 							return console.warn('no effect \'' + effectName + '\' registered');
 						};
@@ -432,9 +404,11 @@ var createRunTime = function createRunTime(app, appId) {
 
 						if (effectOutput instanceof Promise) {
 							Promise.resolve(effectOutput).then(function (response) {
-								exeQueuedMsgs(response, sequenceId);
+								if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = response;
+								exeQueuedMsgs(response, sequenceId, _, sequenceCache);
 							}).catch(function (error) {
-								exeQueuedMsgs({ error: true, errorMsg: error }, sequenceId);
+								if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = error;
+								exeQueuedMsgs({ error: true, errorMsg: error }, sequenceId, _, sequenceCache);
 							});
 						} else {
 							if (effectOutput === '_break_') {
@@ -443,7 +417,8 @@ var createRunTime = function createRunTime(app, appId) {
 								// done callback will not be fired
 								updatesQueue[sequenceId] = [];
 							} else {
-								exeQueuedMsgs(effectOutput, sequenceId);
+								if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = effectOutput;
+								exeQueuedMsgs(effectOutput, sequenceId, _, sequenceCache);
 							}
 						}
 					}
@@ -463,7 +438,7 @@ var createRunTime = function createRunTime(app, appId) {
 								pipedOutput = i === 1 ? processes[i](firstOutput) : processes[i](pipedOutput);
 							}
 						}
-						exeQueuedMsgs(pipedOutput, sequenceId);
+						exeQueuedMsgs(pipedOutput, sequenceId, _, sequenceCache);
 					}
 					break;
 
@@ -473,13 +448,13 @@ var createRunTime = function createRunTime(app, appId) {
 						if (!msgPayload.if && isNumber(msgPayload.continue)) {
 							updatesQueue[sequenceId].length = msgPayload.continue;
 						}
-						exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse, sequenceId);
+						exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse, sequenceId, _, sequenceCache);
 					} else {
 						updatesQueue[sequenceId] = [];
 						if (msgPayload.break) {
 							delete callbacks[sequenceId];
 						} else {
-							exeQueuedMsgs(msgPayload.isFalse, sequenceId, false);
+							exeQueuedMsgs(msgPayload.isFalse, sequenceId, false, sequenceCache);
 						}
 					}
 
@@ -535,148 +510,130 @@ var createRunTime = function createRunTime(app, appId) {
 		}
 	};
 
-	var updateState = function updateState(payload, sequenceId, preventRender) {
-
-		var updateStateObj = function updateStateObj(obj, path) {
-			var value = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
-			var action = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 'default';
-			var add = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 0;
-			var remove = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 0;
+	var updateState = function updateState(obj, path) {
+		var value = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
+		var action = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 'default';
+		var add = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 0;
+		var remove = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 0;
 
 
-			//if path has no keys replace whole state with new value
-			if (isUndefined(path)) {
-				setState(value);
-				return;
+		//if path has no keys replace whole state with new value
+		if (isUndefined(path)) {
+			setState(value);
+			return;
+		}
+
+		// work on arrays
+		if (path.length == 2) {
+			// Updating exsiting value. Call funct again. Dont proceed.
+			if (action === 'default') {
+				return updateState(obj[path[0]], path.slice(1), value, action, add, remove);
 			}
+			///////////////////////////////////
 
-			// work on arrays
-			if (path.length == 2) {
-				// Updating exsiting value. Call funct again. Dont proceed.
-				if (action === 'default') {
-					return updateStateObj(obj[path[0]], path.slice(1), value, action, add, remove);
-				}
-				///////////////////////////////////
+			var data = obj[path[0]];
+			if (isNullorUndef(data)) throw new Error('Karbon - cannot modify undefined array "' + path[0] + '".');
 
-				var data = obj[path[0]];
-				if (isNullorUndef(data)) throw new Error('Karbon - cannot modify undefined array "' + path[0] + '".');
+			if (action === 'splice') {
 
-				if (action === 'splice') {
+				var index = path[1];
 
-					var index = path[1];
-
-					// add multiple paramters to array (and remove)
-					if (add > 1) {
-						var args = [index, remove];
-						// if multiple values are provided as an array
-						if (isArray(value)) {
-							for (var i = 0; i < value.length; i++) {
-								args[args.length] = value[i];
-							}
-							// if only one value is provided but must be added more than 1 time
-							// use the same value.
-						} else {
-							for (var _i2 = 0; _i2 < add; _i2++) {
-								args[args.length] = value;
-							}
+				// add multiple paramters to array (and remove)
+				if (add > 1) {
+					var args = [index, remove];
+					// if multiple values are provided as an array
+					if (isArray(value)) {
+						for (var i = 0; i < value.length; i++) {
+							args[args.length] = value[i];
 						}
-						// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
-						data.splice.apply(data, args);
+						// if only one value is provided but must be added more than 1 time
+						// use the same value.
 					} else {
-						// add one paramter to array (and remove)
-						if (isNotNull(value)) {
-							// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
-							data.splice(index, remove, value);
-							// only remove parameter/s from array
-						} else {
-							if (isNullorUndef(data[index])) throw new Error('Karbon - cannot remove. Array "' + path[0] + '" does not contain item at position "' + index + '".');
-							data.splice(index, remove);
+						for (var _i2 = 0; _i2 < add; _i2++) {
+							args[args.length] = value;
 						}
 					}
-				}
-
-				// delete object key
-				else if (action === 'delete') {
-						var key = path[1];
-						if (isNullorUndef(data[key])) throw new Error('Karbon - cannot delete undefined obj key "' + key + '". Check that it wasn\'t removed in a previous action.');
-						delete data[key];
-					}
-			} else if (path.length == 1) {
-				var _key2 = path[0];
-				// update multiple props in one object
-				if (isArray(_key2)) {
-					var multipleValues = isArray(value) ? true : false;
-					for (var _i3 = 0; _i3 < _key2.length; _i3++) {
-
-						if (multipleValues) {
-							// update each prop with a corresponding value from value array
-							obj[_key2[_i3]] = value[_i3];
-						} else {
-							// update each prop with the same fixed string value
-							obj[_key2[_i3]] = value;
-						}
-					}
+					// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
+					data.splice.apply(data, args);
 				} else {
-					// update one prop in one object
-					return obj[_key2] = value;
+					// add one paramter to array (and remove)
+					if (isNotNull(value)) {
+						// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
+						data.splice(index, remove, value);
+						// only remove parameter/s from array
+					} else {
+						if (isNullorUndef(data[index])) throw new Error('Karbon - cannot remove. Array "' + path[0] + '" does not contain item at position "' + index + '".');
+						data.splice(index, remove);
+					}
 				}
-			} else if (path.length == 0) {
-				return obj;
-			} else {
-				return updateStateObj(obj[path[0]], path.slice(1), value, action, add, remove);
 			}
-		};
+
+			// delete object key
+			else if (action === 'delete') {
+					var key = path[1];
+					if (isNullorUndef(data[key])) throw new Error('Karbon - cannot delete undefined obj key "' + key + '". Check that it wasn\'t removed in a previous action.');
+					delete data[key];
+				}
+		} else if (path.length == 1) {
+			var _key2 = path[0];
+			// update multiple props in one object
+			if (isArray(_key2)) {
+				for (var _i3 = 0; _i3 < _key2.length; _i3++) {
+					if (isArray(value)) {
+						// update each prop with a corresponding value from value array
+						obj[_key2[_i3]] = value[_i3];
+					} else {
+						// update each prop with the same fixed string value
+						obj[_key2[_i3]] = value;
+					}
+				}
+			} else {
+				// update one prop in one object
+				return obj[_key2] = value;
+			}
+		} else if (path.length == 0) {
+			return obj;
+		} else {
+			return updateState(obj[path[0]], path.slice(1), value, action, add, remove);
+		}
+	};
+
+	var runUpdate = function runUpdate(payload, sequenceId, preventRender, sequenceCache) {
 
 		/// update state obj and rerender  ///
 		///////////////////////////////////// 
 
+		/* START.DEV_ONLY */
+		var prevState = void 0;
+		/* END.DEV_ONLY */
+
 		var changedStateKeys = isArray(payload) ? [] : isDefined(payload.path) ? payload.path[0] : undefined;
 
+		/* START.DEV_ONLY */
+		if (isDefined(appTap.state)) prevState = JSON.stringify(appState);
+		/* END.DEV_ONLY */
+
 		if (isArray(payload)) {
-			var prevState = void 0;
-
-			/* START.DEV_ONLY */
-			if (isDefined(appTap.state)) {
-				prevState = JSON.stringify(appState);
-			}
-			/* END.DEV_ONLY */
-
 			for (var i = 0; i < payload.length; i++) {
 				var payloadObj = payload[i];
-				updateStateObj(appState, payloadObj.path, payloadObj.value, payloadObj.action, payloadObj.add, payloadObj.remove);
+				updateState(appState, payloadObj.path, payloadObj.value, payloadObj.action, payloadObj.add, payloadObj.remove);
 				changedStateKeys[i] = payloadObj.path[0];
 			}
-			/* START.DEV_ONLY */
-			if (isDefined(appTap.state)) {
-				appTap.state({ prevState: JSON.parse(prevState), newState: appState, sequenceId: sequenceId });
-			}
-			/* END.DEV_ONLY */
 		} else {
-
-			var _prevState = void 0;
-
-			/* START.DEV_ONLY */
-			if (isDefined(appTap.state)) {
-				_prevState = JSON.stringify(appState);
-			}
-			/* END.DEV_ONLY */
-
-			updateStateObj(appState, payload.path, payload.value, payload.action, payload.add, payload.remove);
-
-			/* START.DEV_ONLY */
-			if (isDefined(appTap.state)) {
-				appTap.state({ prevState: JSON.parse(_prevState), newState: appState, sequenceId: sequenceId });
-			}
-			/* END.DEV_ONLY */
+			updateState(appState, payload.path, payload.value, payload.action, payload.add, payload.remove);
 		}
+
+		/* START.DEV_ONLY */
+		if (isDefined(appTap.state)) appTap.state({ prevState: JSON.parse(prevState), newState: appState, sequenceId: sequenceId });
+		/* END.DEV_ONLY */
 
 		// run subrciptions function every time state changes. Even with no render
 		app.runHandleSubs(appId);
 
 		if (!preventRender) {
-			app.reRender(changedStateKeys, sequenceId, appId);
+			app.reRender(changedStateKeys, sequenceId, appId, sequenceCache);
 		} else {
-			exeQueuedMsgs(undefined, sequenceId);
+			exeQueuedMsgs(undefined, sequenceId, _, sequenceCache);
 		}
 	};
 
@@ -776,6 +733,8 @@ var createVNode = function createVNode(type, parentComponentIndex, data, level) 
 	};
 };
 
+/* eslint-disable no-mixed-spaces-and-tabs */
+
 var actionsCache = {};
 
 var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
@@ -809,27 +768,24 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 	var setKeyedNodesPrev = function setKeyedNodesPrev() {
 		keyedNodesPrev = Object.assign({}, keyedNodes);
 		// reset keyeNodes Obj instead of creating new one
-		var keys = Object.keys(keyedNodes);
-		for (var i = 0; i < keys.length; i++) {
-			delete keyedNodes[keys[i]];
-		}
+		clearObject(keyedNodes);
 	};
 
 	var resetVDomNodesArray = function resetVDomNodesArray() {
 		vDomNodesArray.length = 0;
 	};
 
-	var nodeClose = function nodeClose(el) {
+	var nodeClose = function nodeClose(tagName) {
 		rootIndex--;
-		if (el === 'svg' || el === '/svg') renderingSvg = false;
+		if (tagName === 'svg' || tagName === '/svg') renderingSvg = false;
 	};
 
-	var nodeOpen = function nodeOpen(el) {
+	var nodeOpen = function nodeOpen(tagName) {
 		var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 		var flags = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : { key: false, staticChildren: false };
 
 
-		if (el === 'svg') renderingSvg = true;
+		if (tagName === 'svg') renderingSvg = true;
 
 		// Dont cache args as vars as more performant - less garbage collection
 		// createElementObj args are :
@@ -837,7 +793,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		keyName = flags.key;
 		isKeyed = keyName !== false;
 
-		vNode = createVNode(el, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg);
+		vNode = createVNode(tagName, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg);
 
 		// more performant than array.push()
 		vDomNodesArray[vDomNodesArray.length] = vNode;
@@ -863,19 +819,24 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 			keyedNodes[rootIndex][keyName] = vNode;
 		}
 
-		if (!voidedElements[el]) {
+		if (!voidedElements[tagName]) {
 			rootIndex++;
 		}
 	};
 
 	var renderRootComponent = function renderRootComponent(comp, data) {
-		// Render all components top down from root
+		// Render all components top down from root		
 		component(comp, data);
 	};
 
 	var component = function component(comp) {
 		var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 
+
+		if (isArray(comp)) {
+			data = comp[1] || {};
+			comp = comp[0];
+		}
 
 		var viewRef = Object.keys(comp)[0];
 		var view = comp[viewRef];
@@ -892,25 +853,20 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		var localActions = void 0;
 		var dataActions = data.actions;
 
-		var createActions = function createActions(actionsObj) {
-			var actionsName = Object.keys(actionsObj)[0];
-
-			if (isDefined(actionsCache[actionsName])) {
-				localActions[actionsName] = actionsCache[actionsName];
-			} else {
-				localActions[actionsName] = actionsObj[actionsName]({ stamp: runTime.stamp, msgs: runTime.messages });
-				actionsCache[actionsName] = localActions[actionsName];
-			}
-		};
-
 		if (isDefined(dataActions)) {
 			localActions = {};
-			if (isArray(dataActions)) {
-				for (var i = 0; i < dataActions.length; i++) {
-					createActions(dataActions[i]);
+			dataActions = isArray(dataActions) ? dataActions : [dataActions];
+
+			for (var i = 0; i < dataActions.length; i++) {
+				var actionsObj = dataActions[i];
+				var actionsName = Object.keys(actionsObj)[0];
+
+				if (isDefined(actionsCache[actionsName])) {
+					localActions[actionsName] = actionsCache[actionsName];
+				} else {
+					localActions[actionsName] = actionsObj[actionsName]({ stamp: runTime.stamp, msgs: runTime.messages });
+					actionsCache[actionsName] = localActions[actionsName];
 				}
-			} else {
-				createActions(dataActions);
 			}
 		}
 
@@ -955,6 +911,8 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 	};
 };
 
+/* eslint-disable no-mixed-spaces-and-tabs */
+
 var nodeProps = void 0;
 var elProps$1 = void 0;
 var el = void 0;
@@ -981,17 +939,17 @@ var createDomElement = function createDomElement(node) {
 		if (isObject(value)) {
 			if (isDefined(value.length)) {
 				//Array
-				if (prop === 'class') {
+				if (prop[0] === 'o' && prop[1] === 'n') {
+					el[prop] = function (event) {
+						return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
+					};
+				} else if (prop === 'class') {
 					var classList = value.filter(Boolean); //remove any empty strings
 					if (classList.length > 0) {
 						var _el$classList;
 
 						(_el$classList = el.classList).add.apply(_el$classList, toConsumableArray(classList));
 					}
-				} else if (prop[0] === 'o' && prop[1] === 'n') {
-					el[prop] = function (event) {
-						return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
-					};
 				} else {
 					// add data attrs
 					for (var _i = 0; _i < value.length; _i++) {
@@ -1010,6 +968,8 @@ var createDomElement = function createDomElement(node) {
 		} else {
 			if (prop === 'text') {
 				el.textContent = value;
+			} else if (prop === 'class') {
+				if (isNotEmpty(value)) el.className = value;
 			} else if (isDefined(el[prop]) && !isSVG) {
 				el[prop] = value;
 			} else {
@@ -1086,32 +1046,29 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 	overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && currentLevel > forceUpdateStartLevel;
 
 	if (overrideDefaultAction) {
+
+		// if the dom node was removed previously and we don't want it to
+		// be recreated - do nothing - even though the vdom nodes comparison
+		// triggers a removal action.
+		if (nR.action === 'removed') {
+			return false;
+		}
 		// add new nodes in the case parent has been replaced or removed.
 		// In such cases the children Dom els have been removed but the vdom
 		// nodes still remain unchanged (when comparing) and therefore dont trigger a
 		// dom update. We need to force creation of new nodes to replace those
 		// which were removed when parent was replaced. This overide continues for as long
 		// as the node being added is a child of the parent which was replaced.
-		if (nR.action !== 'removed') {
-			updateRenderObj(true, 'newNode');
-			return renderObj;
-		}
-		// if the dom node was removed previously and we don't want it to
-		// be recreated - do nothing - even though the vdom nodes comparison
-		// triggers a removal action.
-		else if (nR.action === 'removed') {
-				return false;
+		else {
+				updateRenderObj(true, 'newNode');
+				return renderObj;
 			}
 	}
 
-	if (notChanged) {
-		return false;
-	}
+	if (notChanged) return false;
 
 	// node changed //
 	//////////////////
-
-
 	if (isNotNull(prevProps) && isNotNull(newProps)) {
 
 		if (isDefined(newProps.innerHTML)) {
@@ -1253,7 +1210,9 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 		case 'class':
 			{
 				node.removeAttribute(prop);
-				if (value.length > 0) {
+				if (isString(value) && isNotEmpty(value)) {
+					node.className = value;
+				} else if (isArray(value) && value.length > 0) {
 					var _node$classList;
 
 					(_node$classList = node.classList).add.apply(_node$classList, toConsumableArray(value.filter(Boolean))); //filter out aall empty strings
@@ -1270,7 +1229,7 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 						styles += key + ':' + value[key] + '; ';
 					}
 				}
-				if (styles !== '') {
+				if (isNotEmpty(styles)) {
 					node.style.cssText = styles;
 				} else {
 					node.removeAttribute(prop);
@@ -1306,49 +1265,18 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 			break;
 		default:
 			if (prop[0] === 'o' && prop[1] === 'n') {
-				node[prop] = null;
 				node[prop] = function (event) {
 					return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
 				};
 			} else if (isUndefined(node[prop]) || node instanceof SVGElement) {
 				node.setAttribute(prop, value);
-			} else if (value === '') {
+			} else if (isEmpty(value)) {
 				node[prop] = false;
 				node.removeAttribute(prop);
 			} else {
 				node[prop] = value;
 			}
 	}
-};
-
-var recycledVNodeStatic = {
-	type: null,
-	lang: null,
-	props: null,
-	level: undefined,
-	key: false,
-	keyedAction: 'recycled',
-	keyedChildren: null,
-	staticChildren: false,
-	parentComponent: null,
-	parentComponentIndex: null,
-	subscribesTo: null,
-	dom: null
-};
-
-var recyclableVNodeStatic = {
-	type: null,
-	lang: null,
-	props: null,
-	level: undefined,
-	key: false,
-	keyedAction: 'recyclable',
-	keyedChildren: null,
-	staticChildren: false,
-	parentComponent: null,
-	parentComponentIndex: null,
-	subscribesTo: null,
-	dom: null
 };
 
 var emptyVNodeStatic = {
@@ -1365,6 +1293,9 @@ var emptyVNodeStatic = {
 	subscribesTo: null,
 	dom: null
 };
+
+var recycledVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recycled' });
+var recyclableVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recyclable' });
 
 // Algorithim for syncing prev vNode tree with new vNode tree
 // Each node in the vtree array needs to be compared to a node on the same level in the old tree
@@ -1458,18 +1389,18 @@ var syncVNodes = function syncVNodes(domNodes, domNodesPrev, keyedNodes, keyedNo
 				// Try to retrieve current keyed node from prev keyed pool
 				var prevKeyedNode = keyedNodesPrevPool[node.key];
 
-				var addKeyedChildrenToOldTree = function addKeyedChildrenToOldTree() {
-					if (prevKeyedNode.keyedChildren.length > 0) {
-						var childrenCount = 0;
-						while (isDefined(domNodesPrev[i + childrenCount + 1]) && domNodesPrev[i + childrenCount + 1].level > keyedParentLevel) {
-							childrenCount++;
-						}
-						domNodesPrev.splice.apply(domNodesPrev, [i + 1, childrenCount].concat(toConsumableArray(prevKeyedNode.keyedChildren)));
-					}
-				};
-
 				// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).
 				if (isDefined(prevKeyedNode)) {
+
+					var addKeyedChildrenToOldTree = function addKeyedChildrenToOldTree() {
+						if (prevKeyedNode.keyedChildren.length > 0) {
+							var childrenCount = 0;
+							while (isDefined(domNodesPrev[i + childrenCount + 1]) && domNodesPrev[i + childrenCount + 1].level > keyedParentLevel) {
+								childrenCount++;
+							}
+							domNodesPrev.splice.apply(domNodesPrev, [i + 1, childrenCount].concat(toConsumableArray(prevKeyedNode.keyedChildren)));
+						}
+					};
 
 					// 1: Insert old (recycled) keyed node
 					////////////////////////////////
@@ -1641,10 +1572,8 @@ var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextN
 			current = 'sibling';
 		}
 
-		if (isDefined(prevOldNode)) {
-			if (isNull(prevNode.props && isNotNull(prevOldNode.props))) {
-				actionPrev = 'removed';
-			}
+		if (isDefined(prevOldNode) && isNull(prevNode.props) && isNotNull(prevOldNode.props)) {
+			actionPrev = 'removed';
 		}
 	}
 
@@ -1660,10 +1589,8 @@ var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextN
 		if (isNull(nextNode.props)) {
 			actionNext = 'removed';
 		}
-		if (isDefined(nextOldNode)) {
-			if (isNull(nextOldNode.props)) {
-				actionNext = 'add';
-			}
+		if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
+			actionNext = 'add';
 		}
 	}
 
@@ -1671,10 +1598,8 @@ var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextN
 		action = 'removed';
 	}
 
-	if (isDefined(oldNode)) {
-		if (isNull(oldNode.props)) {
-			action = 'add';
-		}
+	if (isDefined(oldNode) && isNull(oldNode.props)) {
+		action = 'add';
 	}
 
 	return {
@@ -1688,215 +1613,231 @@ var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextN
 	};
 };
 
+var nodeReplacedFlag = void 0;
+var nodeRemovedFlag = void 0;
+var handleUntrackedHtmlNodesFlag = void 0;
+var forceUpdateStartLevel = void 0;
+var keyedNodeRecycleBin = {};
+var $_parentNodeStack = [];
+var $_parentNode = void 0;
+var $_currentNode = void 0;
+var $_prevParentCache = void 0;
+var node = void 0;
+var prevNode = void 0;
+var currentLevel = void 0;
+var nR = void 0;
+var nodeIsListeningToStateKey = void 0;
+var renderNode = void 0;
+var prevLevel = void 0;
+var nodesToSkip = void 0;
+var domOpsCount = void 0;
+var domOpsComplete = void 0;
+var syncedVNodes = void 0;
+var subscribesTo = void 0;
 var childNodeIndexes = [];
+
+var getDomIndex = function getDomIndex(currentLevel) {
+	return childNodeIndexes[currentLevel];
+};
+
+var updateChildNodeFauxDomIndexes = function updateChildNodeFauxDomIndexes(nodeRelation, currentLevel) {
+	switch (nodeRelation.current) {
+		case 'parent':
+			childNodeIndexes[currentLevel]++;
+			break;
+		case 'child':
+			childNodeIndexes[currentLevel] = 0;
+			break;
+		case 'sibling':
+			childNodeIndexes[currentLevel]++;
+			break;
+	}
+};
+
+var replaceNode = function replaceNode(parentNode, newNode, oldNode) {
+	if (isDefined(oldNode) && isNotNull(oldNode)) {
+		parentNode.replaceChild(newNode, oldNode);
+	} else {
+		parentNode.appendChild(newNode);
+	}
+};
+
+var swapElements = function swapElements(parent, el1, el2) {
+	var n2 = el2.nextSibling;
+	if (n2 === el1) {
+		parent.insertBefore(el1, el2);
+	} else {
+		parent.insertBefore(el2, el1);
+	}
+	if (isDefined(el1)) {
+		parent.insertBefore(el1, n2);
+	}
+};
+
+var updateProperties = function updateProperties(props, values, currentNode) {
+	for (var i = 0; i < props.length; i++) {
+		updateChangedNode(props[i], values[i], currentNode);
+	}
+};
+
+var patch = function patch() {
+
+	renderNode = shouldRenderNode(prevNode, node, nR, nodeReplacedFlag, nodeRemovedFlag, currentLevel, forceUpdateStartLevel);
+
+	if (currentLevel <= forceUpdateStartLevel) {
+		nodeReplacedFlag = false;
+		nodeRemovedFlag = false;
+	}
+
+	if (renderNode.should) {
+
+		if (handleUntrackedHtmlNodesFlag) {
+			// Increase the child node index by 1 as all untracked nodes created by using
+			// innerHTML prop will be wrapped in a sandbox div to prevent breaking the 
+			// vdom -> real dom comparison
+			childNodeIndexes[currentLevel]++;
+		}
+
+		switch (renderNode.action) {
+
+			case 'updateNode':
+				{
+					$_currentNode = prevNode.dom;
+					node.dom = $_currentNode;
+					updateProperties(renderNode.props, renderNode.values, $_currentNode);
+					domOpsCount++;
+					break;
+				}
+
+			case 'newNode':
+				{
+					$_currentNode = createDomElement(node);
+					node.dom = $_currentNode;
+					$_parentNode.appendChild($_currentNode);
+					domOpsCount++;
+					break;
+				}
+
+			case 'replaceNode':
+				{
+					$_currentNode = createDomElement(node);
+					node.dom = $_currentNode;
+					replaceNode($_parentNode, $_currentNode, prevNode.dom, currentLevel);
+					nodeReplacedFlag = true;
+					forceUpdateStartLevel = currentLevel;
+					domOpsCount++;
+					break;
+				}
+
+			case 'removeNode':
+				{
+					var nodeToRemove = prevNode.dom;
+					if (isNotNullandIsDef(nodeToRemove)) {
+						$_parentNode.removeChild(nodeToRemove);
+						nodeToRemove = null;
+						childNodeIndexes[currentLevel]--;
+						nodeRemovedFlag = true;
+						forceUpdateStartLevel = currentLevel;
+						domOpsCount++;
+					}
+					break;
+				}
+
+			case 'recyclable':
+				{
+					if (isUndefined(keyedNodeRecycleBin[prevNode.key])) {
+						keyedNodeRecycleBin[prevNode.key] = true;
+					} else {
+						childNodeIndexes[currentLevel]--;
+					}
+					break;
+				}
+
+			case 'handleKeyedUpdate':
+				{
+					var currentDomNode = $_parentNode.children[getDomIndex(currentLevel)];
+					var recycledDomNode = prevNode.dom;
+					var keyedAction = renderNode.keyedAction;
+					$_currentNode = recycledDomNode;
+
+					if (keyedAction === 'insertNew') {
+						$_currentNode = createDomElement(node);
+						$_parentNode.insertBefore($_currentNode, currentDomNode);
+						domOpsCount++;
+					} else if (keyedAction === 'insertOld') {
+						$_parentNode.insertBefore(recycledDomNode, currentDomNode);
+						keyedNodeRecycleBin[node.key] = true;
+						domOpsCount++;
+						if (renderNode.props.length > 0) {
+							updateProperties(renderNode.props, renderNode.values, $_currentNode);
+						}
+					} else if (keyedAction === 'swap' || isDefined(currentDomNode) && !currentDomNode.isEqualNode(recycledDomNode)) {
+						swapElements($_parentNode, currentDomNode, recycledDomNode);
+						keyedNodeRecycleBin[node.key] = true;
+						domOpsCount++;
+						if (renderNode.props.length > 0) {
+							updateProperties(renderNode.props, renderNode.values, $_currentNode);
+						}
+					} else if (keyedAction === 'updateAttrs' && renderNode.props.length > 0) {
+						updateProperties(renderNode.props, renderNode.values, $_currentNode);
+						domOpsCount++;
+					}
+
+					node.dom = $_currentNode;
+					break;
+				}
+		}
+
+		if (renderNode.untrackedHtmlNodes && nR.next === 'child' && nR.actionNext !== 'removed') {
+			handleUntrackedHtmlNodesFlag = true;
+		} else {
+			handleUntrackedHtmlNodesFlag = false;
+		}
+	} else {
+		node.dom = prevNode.dom;
+		$_currentNode = node.dom;
+		if (renderNode === 'recycled') {
+			childNodeIndexes[currentLevel]--;
+		}
+	}
+};
 
 var createView = function createView(appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev) {
 
-	var nodeReplacedFlag = false;
-	var nodeRemovedFlag = false;
-	var handleUntrackedHtmlNodesFlag = false;
-	var forceUpdateStartLevel = null;
-	var keyedNodeRecycleBin = {};
+	nodeReplacedFlag = false;
+	nodeRemovedFlag = false;
+	handleUntrackedHtmlNodesFlag = false;
+	forceUpdateStartLevel = null;
+	$_parentNode = undefined;
+	$_currentNode = undefined;
+	$_prevParentCache = undefined;
+	node = undefined;
+	prevNode = undefined;
+	currentLevel = undefined;
+	nR = undefined;
+	nodeIsListeningToStateKey = false;
+	renderNode = undefined;
+	prevLevel = 0;
+	nodesToSkip = 0;
+	domOpsCount = 0;
+	domOpsComplete = false;
+	syncedVNodes = undefined;
+	subscribesTo = null;
 
-	//rest array for reuse
+	//rest obj and arrays for reuse
+	clearObject(keyedNodeRecycleBin);
+	$_parentNodeStack.length = 0;
 	childNodeIndexes.length = 0;
 
 	if (virtualDom.isInitialized() && virtualDom.requiresSync()) {
-		var syncedVNodes = syncVNodes(domNodes.slice(0), domNodesPrev, keyedNodes, keyedNodesPrev);
+		syncedVNodes = syncVNodes(domNodes.slice(0), domNodesPrev, keyedNodes, keyedNodesPrev);
 		domNodes = syncedVNodes.domNodes;
 		domNodesPrev = syncedVNodes.domNodesPrev;
 	}
 
-	var getDomIndex = function getDomIndex(currentLevel) {
-		return childNodeIndexes[currentLevel];
-	};
-
-	var updateChildNodeFauxDomIndexes = function updateChildNodeFauxDomIndexes(nodeRelation, currentLevel) {
-		switch (nodeRelation.current) {
-			case 'parent':
-				childNodeIndexes[currentLevel]++;
-				break;
-			case 'child':
-				childNodeIndexes[currentLevel] = 0;
-				break;
-			case 'sibling':
-				childNodeIndexes[currentLevel]++;
-				break;
-		}
-	};
-
-	var replaceNode = function replaceNode(parentNode, newNode, oldNode, currentLevel) {
-		if (isDefined(oldNode) && isNotNull(oldNode)) {
-			parentNode.replaceChild(newNode, oldNode);
-		} else {
-			parentNode.appendChild(newNode);
-		}
-		nodeReplacedFlag = true;
-		forceUpdateStartLevel = currentLevel;
-	};
-
-	var swapElements = function swapElements(parent, el1, el2) {
-		var n2 = el2.nextSibling;
-		if (n2 === el1) {
-			parent.insertBefore(el1, el2);
-		} else {
-			parent.insertBefore(el2, el1);
-		}
-		if (isDefined(el1)) {
-			parent.insertBefore(el1, n2);
-		}
-	};
-
-	var updateProperties = function updateProperties(props, values, currentNode) {
-		for (var i = 0; i < props.length; i++) {
-			updateChangedNode(props[i], values[i], currentNode);
-		}
-	};
-
-	var patch = function patch(prevNode, node, nR, parentNodeEl, currentLevel) {
-
-		renderNode = shouldRenderNode(prevNode, node, nR, nodeReplacedFlag, nodeRemovedFlag, currentLevel, forceUpdateStartLevel);
-
-		if (currentLevel <= forceUpdateStartLevel) {
-			nodeReplacedFlag = false;
-			nodeRemovedFlag = false;
-		}
-
-		if (renderNode.should) {
-
-			if (handleUntrackedHtmlNodesFlag) {
-				// Increase the child node index by 1 as all untracked nodes created by using
-				// innerHTML prop will be wrapped in a sandbox div to prevent breaking the 
-				// vdom -> real dom comparison
-				childNodeIndexes[currentLevel]++;
-			}
-
-			switch (renderNode.action) {
-
-				case 'updateNode':
-					{
-						$_currentNode = prevNode.dom;
-						node.dom = $_currentNode;
-						updateProperties(renderNode.props, renderNode.values, $_currentNode);
-						domOpsCount++;
-						break;
-					}
-
-				case 'newNode':
-					{
-						$_currentNode = createDomElement(node);
-						node.dom = $_currentNode;
-						parentNodeEl.appendChild($_currentNode);
-						domOpsCount++;
-						break;
-					}
-
-				case 'replaceNode':
-					{
-						$_currentNode = createDomElement(node);
-						node.dom = $_currentNode;
-						replaceNode(parentNodeEl, $_currentNode, prevNode.dom, currentLevel);
-						domOpsCount++;
-						break;
-					}
-
-				case 'removeNode':
-					{
-						var nodeToRemove = prevNode.dom;
-						if (isNotNullandIsDef(nodeToRemove)) {
-							parentNodeEl.removeChild(nodeToRemove);
-							nodeToRemove = null;
-							childNodeIndexes[currentLevel]--;
-							nodeRemovedFlag = true;
-							forceUpdateStartLevel = currentLevel;
-							domOpsCount++;
-						}
-						break;
-					}
-
-				case 'recyclable':
-					{
-						if (isUndefined(keyedNodeRecycleBin[prevNode.key])) {
-							keyedNodeRecycleBin[prevNode.key] = true;
-						} else {
-							childNodeIndexes[currentLevel]--;
-						}
-						break;
-					}
-
-				case 'handleKeyedUpdate':
-					{
-						var currentDomNode = get_$currentNode();
-						var recycledDomNode = prevNode.dom;
-						var keyedAction = renderNode.keyedAction;
-						$_currentNode = recycledDomNode;
-
-						if (keyedAction === 'insertNew') {
-							$_currentNode = createDomElement(node);
-							parentNodeEl.insertBefore($_currentNode, currentDomNode);
-							domOpsCount++;
-						} else if (keyedAction === 'insertOld') {
-							parentNodeEl.insertBefore(recycledDomNode, currentDomNode);
-							keyedNodeRecycleBin[node.key] = true;
-							domOpsCount++;
-							if (renderNode.props.length > 0) {
-								updateProperties(renderNode.props, renderNode.values, $_currentNode);
-							}
-						} else if (keyedAction === 'swap' || isDefined(currentDomNode) && !currentDomNode.isEqualNode(recycledDomNode)) {
-							swapElements(parentNodeEl, currentDomNode, recycledDomNode);
-							keyedNodeRecycleBin[node.key] = true;
-							domOpsCount++;
-							if (renderNode.props.length > 0) {
-								updateProperties(renderNode.props, renderNode.values, $_currentNode);
-							}
-						} else if (keyedAction === 'updateAttrs' && renderNode.props.length > 0) {
-							updateProperties(renderNode.props, renderNode.values, $_currentNode);
-							domOpsCount++;
-						}
-
-						node.dom = $_currentNode;
-						break;
-					}
-			}
-
-			if (renderNode.untrackedHtmlNodes && nR.next === 'child' && nR.actionNext !== 'removed') {
-				handleUntrackedHtmlNodesFlag = true;
-			} else {
-				handleUntrackedHtmlNodesFlag = false;
-			}
-		} else {
-			node.dom = prevNode.dom;
-			$_currentNode = node.dom;
-			if (renderNode === 'recycled') {
-				childNodeIndexes[currentLevel]--;
-			}
-		}
-	};
-
-	var $_parentNodeStack = [];
-	var $_parentNode = void 0;
-	var $_currentNode = void 0;
-	var $_prevParentCache = void 0;
-	var node = void 0;
-	var prevNode = void 0;
-	var currentLevel = void 0;
-	var nR = void 0;
-	var nodeIsListeningToStateKey = false;
-	var renderNode = void 0;
-	var prevLevel = 0;
-	var nodesToSkip = 0;
-	var domOpsCount = 0;
-	var domOpsComplete = false;
-
-	var get_$currentNode = function get_$currentNode() {
-		return $_parentNode.children[getDomIndex(currentLevel)];
-	};
-
 	for (var i = 0, len = domNodes.length; i < len; i++) {
 
-		if (domOpsComplete || virtualDom.getDomUpdatesLimit() === domOpsCount) {
-			domOpsComplete = true;
-		}
+		if (domOpsComplete || virtualDom.getDomUpdatesLimit() === domOpsCount) domOpsComplete = true;
 
 		if (!domOpsComplete) {
 
@@ -1951,7 +1892,7 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 				// check if the node 'subcribesTo' value matches any of the state key
 				// which have been changed. If so 'node is listening to change' so go
 				// ahead with DOM updates.
-				var subscribesTo = node.subscribesTo || prevNode.subscribesTo;
+				subscribesTo = node.subscribesTo || prevNode.subscribesTo;
 
 				if (isDefined(changedStateKeys) && isNotNull(subscribesTo) && !nodeIsListeningToStateKey) {
 					for (var _i = 0; _i < subscribesTo.length; _i++) {
@@ -1971,7 +1912,7 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 				// process.
 
 				if (nodeIsListeningToStateKey) {
-					patch(prevNode, node, nR, $_parentNode, currentLevel);
+					patch();
 				} else if (prevNode.parentComponent === node.parentComponent && isNotNull(node.props) && isNotNull(prevNode.props) && !nodeReplacedFlag && !nodeRemovedFlag && node.type === prevNode.type && node.keyedAction !== 'insertOld') {
 					// noop
 					/////////////
@@ -1979,7 +1920,7 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 					$_currentNode = node.dom;
 				} else {
 					// not listening to current state change but needs to rerenderd for sum reason eg. parent node was replaced
-					patch(prevNode, node, nR, $_parentNode, currentLevel);
+					patch();
 				}
 			}
 
@@ -2004,10 +1945,10 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 var vdomNodeBuilder = void 0;
 var vDomNodesArrayPrevious = [];
 
-var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, lastFirstRender, appId) {
+var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, lastFirstRender, appId, sequenceCache) {
 
 	var nodeBuilderInstance = void 0;
-	// cache nodeBuilder instances
+
 	if (!firstRender) {
 		nodeBuilderInstance = vdomNodeBuilder[appId];
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
@@ -2024,7 +1965,7 @@ var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActi
 	createView(appContainer, nodeBuilderInstance.getVDomNodesArray(), vDomNodesArrayPrevious, changedStateKeys, nodeBuilderInstance.getKeyedNodes(), nodeBuilderInstance.getKeyedNodesPrev(), appId);
 
 	if (!firstRender) {
-		runTime.exeQueuedMsgs(undefined, sequenceId);
+		runTime.exeQueuedMsgs(undefined, sequenceId, undefined, sequenceCache);
 	} else {
 		if (isFunction(appOnInit)) appOnInit(appGlobalActions);
 		if (lastFirstRender) {
@@ -2205,9 +2146,9 @@ var karbon = function () {
 				this.handleSubs(this.appSubs[appId](this.runTime[appId].getState(), this.appGlobalActions[appId]), appId);
 			}
 		},
-		reRender: function reRender(changedStateKeys, sequenceId, appId) {
+		reRender: function reRender(changedStateKeys, sequenceId, appId, sequenceCache) {
 
-			renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], undefined, changedStateKeys, sequenceId, false, undefined, appId, undefined);
+			renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], undefined, changedStateKeys, sequenceId, false, undefined, appId, sequenceCache);
 		}
 	};
 }();

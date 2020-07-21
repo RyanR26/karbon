@@ -1,4 +1,8 @@
-import { isUndefined, isDefined, isArray, checkPropTypes, propTypes, isFunction } from '../utils/utils';
+/* eslint-disable no-mixed-spaces-and-tabs */
+import { isUndefined, isDefined, isArray, isFunction, clearObject } from '../utils/utils';
+/* START.DEV_ONLY */
+import { checkPropTypes, propTypes } from '../utils/utils';
+/* END.DEV_ONLY */
 import { voidedElements } from './voidedElements';
 import { createVNode } from './createVNode';
 
@@ -29,24 +33,21 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 	const setKeyedNodesPrev = () => {
 		keyedNodesPrev = Object.assign({}, keyedNodes);
 		// reset keyeNodes Obj instead of creating new one
-		const keys = Object.keys(keyedNodes);
-		for(let i = 0; i<keys.length; i++) {
-			delete keyedNodes[keys[i]];
-		}
+		clearObject(keyedNodes);
 	};
 	
 	const resetVDomNodesArray = () => {
 		vDomNodesArray.length = 0;
 	};
 
-	const nodeClose = el => {
+	const nodeClose = tagName => {
 		rootIndex--;
-		if(el === 'svg' || el === '/svg') renderingSvg = false;
+		if (tagName === 'svg' || tagName === '/svg') renderingSvg = false;
 	};
 
-	const nodeOpen = (el, data = {}, flags = {key: false, staticChildren: false}) => {
+	const nodeOpen = (tagName, data = {}, flags = {key: false, staticChildren: false}) => {
 
-		if(el === 'svg') renderingSvg = true;
+		if (tagName === 'svg') renderingSvg = true;
 
 		// Dont cache args as vars as more performant - less garbage collection
 		// createElementObj args are :
@@ -55,7 +56,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		isKeyed = keyName !== false;
 			
 		vNode = createVNode(
-			el,
+			tagName,
 			componentActiveIndexArray[componentActiveIndexArray.length - 1],
 			data,
 			rootIndex,
@@ -72,36 +73,41 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		// store all keyedNode children on the cached vNode so that when the parent is 
 		// moved the children are moved too and in order to splice back into
 		// the main vdom array for comparison
-		if(isDefined(keyedParent) && rootIndex > keyedParentLevel) {
+		if (isDefined(keyedParent) && rootIndex > keyedParentLevel) {
 			keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
-		} else if(isDefined(keyedParent) && rootIndex === keyedParentLevel) {
+		} else if (isDefined(keyedParent) && rootIndex === keyedParentLevel) {
 			keyedParent = undefined;
 			keyedParentLevel = undefined;
 		}
 
-		if(isKeyed) {
+		if (isKeyed) {
 			keyedParentLevel = rootIndex;
 			keyedParent = vNode;
 			vNode.keyedChildren = [];
 
-			if(isUndefined(keyedNodes[rootIndex])) {
+			if (isUndefined(keyedNodes[rootIndex])) {
 				keyedNodes[rootIndex] = {};
 			}
 			keyedNodes[rootIndex][keyName] = vNode;
 		}
 
-		if(!voidedElements[el]) {
+		if (!voidedElements[tagName]) {
 			rootIndex++;
 		}
 	};
 
 	const renderRootComponent = (comp, data) => {
-		// Render all components top down from root
+		// Render all components top down from root		
 		component(comp, data);
 	};
 	
 	const component = (comp, data = {}) => {
 
+		if (isArray(comp)) {
+			data = comp[1] || {};
+			comp = comp[0];
+		}
+      
 		const viewRef = Object.keys(comp)[0];
 		const view = comp[viewRef];
 		const index = isUndefined(data.index) ? 0 : data.index;
@@ -115,27 +121,22 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		////////////////////////////////////////////////////////////////////////////
 
 		let localActions;
-		const dataActions = data.actions;
+		let dataActions = data.actions;
 
-		const createActions = actionsObj => {
-			const actionsName = Object.keys(actionsObj)[0];
-
-			if(isDefined(actionsCache[actionsName])) {
-				localActions[actionsName] = actionsCache[actionsName];
-			} else {
-				localActions[actionsName] = actionsObj[actionsName]({stamp: runTime.stamp, msgs: runTime.messages});
-				actionsCache[actionsName] = localActions[actionsName];
-			}
-		};
-
-		if(isDefined(dataActions)) {
+		if (isDefined(dataActions)) {
 			localActions = {};
-			if(isArray(dataActions)) {
-				for(let i = 0; i < dataActions.length; i++) {
-					createActions(dataActions[i]);
+			dataActions = isArray(dataActions) ? dataActions : [dataActions];
+      
+			for (let i = 0; i < dataActions.length; i++) {
+				const actionsObj = dataActions[i];
+				const actionsName = Object.keys(actionsObj)[0];
+
+				if (isDefined(actionsCache[actionsName])) {
+					localActions[actionsName] = actionsCache[actionsName];
+				} else {
+					localActions[actionsName] = actionsObj[actionsName]({stamp: runTime.stamp, msgs: runTime.messages});
+					actionsCache[actionsName] = localActions[actionsName];
 				}
-			} else {
-				createActions(dataActions);
 			}
 		}
 
@@ -147,16 +148,16 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		// about performance.
 
 		subscribesToArray[subscribesToArray.length] = 
-			isUndefined(data.subscribe) || data.subscribe === 'all' ? 
-				Object.keys(runTime.getState()) : 
-				data.subscribe;
+      isUndefined(data.subscribe) || data.subscribe === 'all' ? 
+      	Object.keys(runTime.getState()) : 
+      	data.subscribe;
 
 		const propsFromState = isDefined(data.mergeStateToProps) ? data.mergeStateToProps(runTime.getState()) : undefined;
 
 		/* START.DEV_ONLY */
 
 		// Check defined prop types //
-		if(isFunction(data.propTypes)) {
+		if (isFunction(data.propTypes)) {
 
 			checkPropTypes(
 				propsFromState ? Object.assign({}, data.props, propsFromState) : data.props, 
@@ -164,7 +165,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 				viewRef
 			);
 		}
-		
+    
 		/* END.DEV_ONLY */
 
 		// run view render function //
@@ -178,7 +179,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			nodeClose, 
 			component
 		);
-		
+    
 		subscribesToArray.length = subscribesToArray.length - 1;
 		componentActiveArray.length = componentActiveArray.length - 1;
 		componentActiveIndexArray.length = componentActiveIndexArray.length - 1;

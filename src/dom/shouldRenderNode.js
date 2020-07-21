@@ -48,7 +48,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 	props.length = 0;
 	values.length = 0;
 
-	if(objNew.type !== objPrev.type || isNull(prevProps) || isNull(newProps) || isNotNull(objNew.keyedAction)) {
+	if (objNew.type !== objPrev.type || isNull(prevProps) || isNull(newProps) || isNotNull(objNew.keyedAction)) {
 		notChanged = false;
 	} else {
 		notChanged = (objsAreEqual(prevProps, newProps));
@@ -56,48 +56,44 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 
 	overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && (currentLevel > forceUpdateStartLevel);
 
-	if(overrideDefaultAction) {
+	if (overrideDefaultAction) {
+
+		// if the dom node was removed previously and we don't want it to
+		// be recreated - do nothing - even though the vdom nodes comparison
+		// triggers a removal action.
+		if (nR.action === 'removed') {
+			return false;
+		}
 		// add new nodes in the case parent has been replaced or removed.
 		// In such cases the children Dom els have been removed but the vdom
 		// nodes still remain unchanged (when comparing) and therefore dont trigger a
 		// dom update. We need to force creation of new nodes to replace those
 		// which were removed when parent was replaced. This overide continues for as long
 		// as the node being added is a child of the parent which was replaced.
-		if(nR.action !== 'removed') {
+		else {
 			updateRenderObj(true, 'newNode');
 			return renderObj;
 		}
-		// if the dom node was removed previously and we don't want it to
-		// be recreated - do nothing - even though the vdom nodes comparison
-		// triggers a removal action.
-		else if(nR.action === 'removed') {
-			return false;
-		}
 	}
 
-	if(notChanged) {
-		return false;
-	}
+	if (notChanged) return false;
 
 	// node changed //
 	//////////////////
+	if (isNotNull(prevProps) && isNotNull(newProps)) {
 
-
-	if(isNotNull(prevProps) && isNotNull(newProps)) {
-
-		
-		if(isDefined(newProps.innerHTML)) {
+		if (isDefined(newProps.innerHTML)) {
 			untrackedHtmlNodes = true;
 		}
 		
 		// when comparing 2 stateful elements - replace previous element with new as
 		// sometimes the new state is not applied. eg. radio box checked attribute when 
 		// the group is differnet from the previous.
-		if(statefulElements[prevProps.type] && prevProps.type === newProps.type) {
+		if (statefulElements[prevProps.type] && prevProps.type === newProps.type) {
 			forceReplace = true;
 		}
 
-		if((objNew.key !== false || objPrev.key !== false) && isNotNull(objNew.keyedAction)) {
+		if ((objNew.key !== false || objPrev.key !== false) && isNotNull(objNew.keyedAction)) {
 			handleKeyedNode = true;
 		}
 	
@@ -106,7 +102,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 
 		// because innerHTML will cause 'untracked' DOM nodes to be added we need to trigger
 		// a replacement of the node
-		if((objNew.type !== objPrev.type || untrackedHtmlNodes || forceReplace) && !handleKeyedNode) {
+		if ((objNew.type !== objPrev.type || untrackedHtmlNodes || forceReplace) && !handleKeyedNode) {
 			updateRenderObj(true, 'replaceNode');
 			return renderObj;
 		}
@@ -123,24 +119,24 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		let key;
 		let value;
 
-		for(let i = 0; i < newPropsKeys.length; i++) {
+		for (let i = 0; i < newPropsKeys.length; i++) {
 
 			key = newPropsKeys[i];
 			value = newProps[key];
 
-			if(isDefined(prevProps[key])) {
-				if(isArray(value)) {
-					if(!arraysAreEqual(value, prevProps[key])) {
+			if (isDefined(prevProps[key])) {
+				if (isArray(value)) {
+					if (!arraysAreEqual(value, prevProps[key])) {
 						props[props.length] = key;
 						values[values.length] = value;
 					}
-				} else if(isObject(value)) {
-					if(!objsAreEqual(value, prevProps[key])) {
+				} else if (isObject(value)) {
+					if (!objsAreEqual(value, prevProps[key])) {
 						props[props.length] = key;
 						values[values.length] = value;
 					}
 				} else {
-					if(value !== prevProps[key]) {
+					if (value !== prevProps[key]) {
 						props[props.length] = key;
 						values[values.length] = value;
 					}
@@ -154,12 +150,12 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 
 		// loop over old props to see if there are any that the new node does not have
 		// if so set value to empty to remove
-		for(let i = 0; i < prevPropsKeys.length; i++) {
+		for (let i = 0; i < prevPropsKeys.length; i++) {
 			const oldProp = prevPropsKeys[i];
-			if(newPropsKeys.indexOf(oldProp) === -1) {
+			if (newPropsKeys.indexOf(oldProp) === -1) {
 				// insert this at the beginning as clearing inerHTML will
 				// strip out any text nodes that are set before
-				if(oldProp !== 'innerHTML') {
+				if (oldProp !== 'innerHTML') {
 					props[props.length] = oldProp;
 					values[values.length] = oldProp === 'class' || oldProp === 'dataAttrs' ? [] : '';
 				} else {
@@ -169,7 +165,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 			}
 		}
 
-		if(handleKeyedNode) {
+		if (handleKeyedNode) {
 			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, props, values);
 			return renderObj;
 
@@ -181,12 +177,12 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 
 	// new node //
 	//////////////
-	else if(isNull(prevProps) && isNotNull(newProps)) {
+	else if (isNull(prevProps) && isNotNull(newProps)) {
 
-		if(isDefined(newProps.innerHTML))  {
+		if (isDefined(newProps.innerHTML))  {
 			untrackedHtmlNodes = true;
 		}
-		if(objNew.keyedAction === 'insertNew') {
+		if (objNew.keyedAction === 'insertNew') {
 			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction);
 		} else {
 			updateRenderObj(true, 'newNode', objPrev.keyedAction);
@@ -197,12 +193,12 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 
 	// remove nodes //
 	//////////////////
-	else if(isNotNull(prevProps) && isNull(newProps)) {
+	else if (isNotNull(prevProps) && isNull(newProps)) {
 
-		if(objNew.keyedAction === 'recycled') {
+		if (objNew.keyedAction === 'recycled') {
 			return objNew.keyedAction;
 		}
-		else if(objNew.keyedAction === 'recyclable') {
+		else if (objNew.keyedAction === 'recyclable') {
 			updateRenderObj(true, objNew.keyedAction);
 			return renderObj;
 		}

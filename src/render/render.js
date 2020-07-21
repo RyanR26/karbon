@@ -16,12 +16,13 @@ export const renderApp = (
 	sequenceId, 
 	firstRender,
 	lastFirstRender,
-	appId
+	appId,
+	sequenceCache
 ) => {
-	
+
 	let nodeBuilderInstance;
-	// cache nodeBuilder instances
-	if(!firstRender) {
+
+	if (!firstRender) {
 		nodeBuilderInstance = vdomNodeBuilder[appId];
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 		nodeBuilderInstance.resetVDomNodesArray();
@@ -44,14 +45,14 @@ export const renderApp = (
 		nodeBuilderInstance.getKeyedNodesPrev(),
 		appId
 	);
-
-	if(!firstRender) {
-		runTime.exeQueuedMsgs(undefined, sequenceId);
+  
+	if (!firstRender) {
+		runTime.exeQueuedMsgs(undefined, sequenceId, undefined, sequenceCache);
 	} else {
-		if(isFunction(appOnInit)) appOnInit(appGlobalActions);
+		if (isFunction(appOnInit)) appOnInit(appGlobalActions);
 		if (lastFirstRender) {
 			virtualDom.setInitialized(true);
 			virtualDom.setSync(true);
 		}
-	}
+	}  
 };

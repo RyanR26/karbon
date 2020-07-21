@@ -1,8 +1,6 @@
 /* eslint-disable no-console */
-import '../shims/requestTimeout';
-import { randomStringId, isDefined, isUndefined, isArray, isFunction, isNullorUndef, isNotNull, isNull } from '../utils/utils';
+import { randomStringId, isDefined, isUndefined, isArray, isFunction, isNullorUndef, isNotNull, isNull, isNumber } from '../utils/utils';
 import { virtualDom } from '../vdom/vDomState';
-import { isNumber } from '../utils/utils';
 
 export const createRunTime = (app, appId) => {
 
@@ -14,6 +12,7 @@ export const createRunTime = (app, appId) => {
 	let sequenceCounter = 0;
 	const updatesQueue = {};
 	const callbacks = {};
+	const _ = undefined;
 
 	const setState = state => {
 		appState = state;
@@ -26,11 +25,11 @@ export const createRunTime = (app, appId) => {
 		let callbackData = null;
 		let sequenceCompleted = null;
 		let stampId;
-		let priority;
+		let cache;
 
 		const stamp = data => {
 			stampId = data.id;
-			priority = data.priority;
+			cache = data.cache;
 			return {
 				msgs: messages
 			};
@@ -40,26 +39,26 @@ export const createRunTime = (app, appId) => {
 			callbackData = null;
 			sequenceCounter ++;
 			const sequenceId = (stampId || randomStringId()) + '_' + sequenceCounter ;
-			const priorityDispatch = priority ? true : false;
+			const sequenceCache = Object.assign({}, cache);
+			cache = undefined;
 			stampId = undefined;
-			
+      
+      
 			/* START.DEV_ONLY */
-			if(isDefined(appTap.dispatch)) {
-				appTap.dispatch({msgs, sequenceId});
-			}
+			if (isDefined(appTap.dispatch)) appTap.dispatch({msgs, sequenceId});
 			/* END.DEV_ONLY */
 			
-			window.requestTimeout(() => {
-				createSequenceArray(sequenceId, msgs, priorityDispatch);
-			},0);
+			window.setTimeout(() => {
+				createSequenceArray(sequenceId, msgs, sequenceCache);
+			}, 0);
 
 			return { 
-				done: done(sequenceId, priorityDispatch)
+				done: done(sequenceId)
 			};
 		};
 
 		const done = sequenceId => callback => {
-			if(isNull(callbackData)) {
+			if (isNull(callbackData)) {
 				callbacks[sequenceId] = callback;
 			} else {
 				delete updatesQueue[sequenceId];
@@ -79,25 +78,24 @@ export const createRunTime = (app, appId) => {
 		};
 	})();
 
-	const createSequenceArray = (sequenceId, msgs) => {
+	const createSequenceArray = (sequenceId, msgs, sequenceCache) => {
 		updatesQueue[sequenceId] = [];
-		for(let i = 1; i < msgs.length; i++) {
+		for (let i = 1; i < msgs.length; i++) {
 			updatesQueue[sequenceId][i-1] = msgs[i];
 		}
-		processMsg(sequenceId, msgs[0]);
+		processMsg(sequenceId, msgs[0], _, sequenceCache);
 	};
 
-	const exeQueuedMsgs = (data, sequenceId, sequenceCompleted = true) => {
+	const exeQueuedMsgs = (data, sequenceId, sequenceCompleted = true, sequenceCache) => {
 
-		if(isDefined(sequenceId)) {
+		if (isDefined(sequenceId)) {
 
-			if(updatesQueue[sequenceId].length > 0) {
-				// const msg = updatesQueue[sequenceId].shift();
-				processMsg(sequenceId, updatesQueue[sequenceId].shift(), data);
+			if (updatesQueue[sequenceId].length > 0) {
+				processMsg(sequenceId, updatesQueue[sequenceId].shift(), data, sequenceCache);
 			} 
 			else {
 				delete updatesQueue[sequenceId];
-				if(isFunction(callbacks[sequenceId])) {
+				if (isFunction(callbacks[sequenceId])) {
 					const callbacksClone = Object.assign({}, callbacks);
 					delete callbacks[sequenceId];
 					callbacksClone[sequenceId](data, sequenceCompleted);
@@ -109,27 +107,28 @@ export const createRunTime = (app, appId) => {
 		} 
 	};
 
-	const processMsg = (sequenceId, msg, data) => {
+	const processMsg = (sequenceId, msg, data, sequenceCache) => {
 		
-		const msgArray = !isFunction(msg) ?
+		let msgArray = !isFunction(msg) ?
 			msg :
 			isDefined(data) ?
-				msg(data, getState()) :
-				msg(getState());
-
+				msg(data === 'undefined' ? undefined : data, getState(), sequenceCache) :
+				msg(getState(), sequenceCache);
+        
 		// allow for conditional msgs
-		if(isNull(msgArray)) {
-			exeQueuedMsgs(undefined, sequenceId);
-			
-		} else {
+		if (isNull(msgArray)) {
+			exeQueuedMsgs(null, sequenceId, _, sequenceCache);
+		} 
+		else if (isUndefined(msgArray)) {
+			exeQueuedMsgs('undefined', sequenceId, _, sequenceCache);
+		}
+		else {
 
 			const msgPayload = msgArray[1];
 			const renderFlags = msgArray[2] || {};
 
 			/* START.DEV_ONLY */
-			if(isDefined(appTap.message)) {
-				appTap.message({msg: msgArray, sequenceId});
-			}
+			if (isDefined(appTap.message))	appTap.message({msg: msgArray, sequenceId});
 			/* END.DEV_ONLY */
 			
 			// msgArray[0] === msgType
@@ -148,29 +147,31 @@ export const createRunTime = (app, appId) => {
 					virtualDom.constrainDomUpdates(false);
 				}
 
-				updateState(msgPayload, sequenceId, renderFlags.preventRender ? true : false); 
+				runUpdate(msgPayload, sequenceId, renderFlags.preventRender ? true : false, sequenceCache); 
 			}
 				break;
 
 			case 'effect': {
 
-				const effectName = msgPayload.name;
+				const effectCacheKey = msgPayload.cache;
+				const effectName = msgPayload.name || msgPayload.def;
 				const effectFun = isFunction(effectName) ?
 					effectName :
 					isDefined(appFx[effectName]) ?
 						appFx[effectName] :
 						() => console.warn(`no effect '${effectName}' registered`);
-
-
+        
 				const effectOutput = isArray(msgPayload.args) ?
 					effectFun(...msgPayload.args) :
 					effectFun(msgPayload.args);
 
 				if (effectOutput instanceof Promise) {
 					Promise.resolve(effectOutput).then(response => {
-						exeQueuedMsgs(response, sequenceId);
+						if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = response;
+						exeQueuedMsgs(response, sequenceId, _, sequenceCache);
 					}).catch(error => {
-						exeQueuedMsgs({ error: true, errorMsg: error }, sequenceId);
+						if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = error;
+						exeQueuedMsgs({ error: true, errorMsg: error }, sequenceId, _, sequenceCache);
 					});
 				} else {
 					if (effectOutput === '_break_') {
@@ -179,7 +180,8 @@ export const createRunTime = (app, appId) => {
 						// done callback will not be fired
 						updatesQueue[sequenceId] = [];
 					} else {
-						exeQueuedMsgs(effectOutput, sequenceId);
+						if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = effectOutput;
+						exeQueuedMsgs(effectOutput, sequenceId, _, sequenceCache);
 					}
 				}
 			}
@@ -198,23 +200,23 @@ export const createRunTime = (app, appId) => {
 						pipedOutput = i === 1 ? processes[i](firstOutput) : processes[i](pipedOutput);
 					}
 				}
-				exeQueuedMsgs(pipedOutput, sequenceId);
+				exeQueuedMsgs(pipedOutput, sequenceId, _, sequenceCache);
 			}
 				break;
 
 			case 'control':
 
 				if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue)) {
-					if(!msgPayload.if && isNumber(msgPayload.continue)) {
+					if (!msgPayload.if && isNumber(msgPayload.continue)) {
 						updatesQueue[sequenceId].length = msgPayload.continue;
 					}
-					exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse , sequenceId);
+					exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse , sequenceId, _, sequenceCache);
 				} else {
 					updatesQueue[sequenceId] = [];
-					if(msgPayload.break) {
+					if (msgPayload.break) {
 						delete callbacks[sequenceId];
 					} else {
-						exeQueuedMsgs(msgPayload.isFalse, sequenceId, false);
+						exeQueuedMsgs(msgPayload.isFalse, sequenceId, false, sequenceCache);
 					}
 				}
 				
@@ -242,8 +244,8 @@ export const createRunTime = (app, appId) => {
 				
 				const id = msgPayload.id;
 		
-				if(isDefined(id)) {
-					if(isArray(id)) {
+				if (isDefined(id)) {
+					if (isArray(id)) {
 						for (let i = 0; i < id.length; i++) {
 							findObjKeyByPrefix(id);
 						}
@@ -268,149 +270,132 @@ export const createRunTime = (app, appId) => {
 			}
 		}
 	};
+  
+	const updateState = (obj, path, value = null, action = 'default', add = 0, remove = 0) => {
 
+		//if path has no keys replace whole state with new value
+		if (isUndefined(path)) {
+			setState(value);
+			return;
+		}
 
-	const updateState = (payload, sequenceId, preventRender) => {
-
-		const updateStateObj = (obj, path, value = null, action = 'default', add = 0, remove = 0) => {
-
-			//if path has no keys replace whole state with new value
-			if(isUndefined(path)) {
-				setState(value);
-				return;
+		// work on arrays
+		if (path.length == 2) {
+			// Updating exsiting value. Call funct again. Dont proceed.
+			if (action === 'default') {
+				return updateState(obj[path[0]], path.slice(1), value, action, add, remove);
 			}
+			///////////////////////////////////
 
-			// work on arrays
-			if(path.length == 2) {
-				// Updating exsiting value. Call funct again. Dont proceed.
-				if(action === 'default') {
-					return updateStateObj(obj[path[0]], path.slice(1), value, action, add, remove);
-				}
-				///////////////////////////////////
+			const data = obj[path[0]];
+			if (isNullorUndef(data)) throw new Error(`Karbon - cannot modify undefined array "${path[0]}".`);
 
-				const data = obj[path[0]];
-				if(isNullorUndef(data)) throw new Error(`Karbon - cannot modify undefined array "${path[0]}".`);
+			if (action === 'splice') {
 
-				if(action === 'splice') {
+				const index = path[1];
 
-					const index = path[1];
-
-					// add multiple paramters to array (and remove)
-					if(add > 1) {
-						const args = [index, remove];
-						// if multiple values are provided as an array
-						if(isArray(value)) {
-							for(let i = 0; i < value.length; i++) {
-								args[args.length] = value[i];
-							}
-							// if only one value is provided but must be added more than 1 time
-							// use the same value.
-						} else {
-							for(let i = 0; i < add; i++) {
-								args[args.length] = value;
-							}
+				// add multiple paramters to array (and remove)
+				if (add > 1) {
+					const args = [index, remove];
+					// if multiple values are provided as an array
+					if (isArray(value)) {
+						for (let i = 0; i < value.length; i++) {
+							args[args.length] = value[i];
 						}
-						// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
-						data.splice.apply(data, args);
+						// if only one value is provided but must be added more than 1 time
+						// use the same value.
 					} else {
-						// add one paramter to array (and remove)
-						if(isNotNull(value)) {
-							// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
-							data.splice(index, remove, value);
-							// only remove parameter/s from array
-						} else {
-							if(isNullorUndef(data[index])) throw new Error(`Karbon - cannot remove. Array "${path[0]}" does not contain item at position "${index}".`);
-							data.splice(index, remove);
+						for (let i = 0; i < add; i++) {
+							args[args.length] = value;
 						}
 					}
-				}
-
-				// delete object key
-				else if(action === 'delete') {
-					const key = path[1];
-					if(isNullorUndef(data[key])) throw new Error(`Karbon - cannot delete undefined obj key "${key}". Check that it wasn't removed in a previous action.`);
-					delete data[key];
-				}
-			} else if(path.length == 1) {
-				const key = path[0];
-				// update multiple props in one object
-				if(isArray(key)) {
-					const multipleValues = isArray(value) ? true : false;
-					for(let i = 0; i < key.length; i++) {
-
-						if(multipleValues) {
-							// update each prop with a corresponding value from value array
-							obj[key[i]] = value[i];
-						} else {
-							// update each prop with the same fixed string value
-							obj[key[i]] = value;
-						}
-					}
+					// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
+					data.splice.apply(data, args);
 				} else {
-					// update one prop in one object
-					return obj[key] = value;
+					// add one paramter to array (and remove)
+					if (isNotNull(value)) {
+						// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
+						data.splice(index, remove, value);
+						// only remove parameter/s from array
+					} else {
+						if (isNullorUndef(data[index])) throw new Error(`Karbon - cannot remove. Array "${path[0]}" does not contain item at position "${index}".`);
+						data.splice(index, remove);
+					}
 				}
-			} else if(path.length == 0) {
-				return obj;
-			} else {
-				return updateStateObj(obj[path[0]], path.slice(1), value, action, add, remove);
 			}
-		};
+
+			// delete object key
+			else if (action === 'delete') {
+				const key = path[1];
+				if (isNullorUndef(data[key])) throw new Error(`Karbon - cannot delete undefined obj key "${key}". Check that it wasn't removed in a previous action.`);
+				delete data[key];
+			}
+		} else if (path.length == 1) {
+			const key = path[0];
+			// update multiple props in one object
+			if (isArray(key)) {
+				for (let i = 0; i < key.length; i++) {
+					if (isArray(value)) {
+						// update each prop with a corresponding value from value array
+						obj[key[i]] = value[i];
+					} else {
+						// update each prop with the same fixed string value
+						obj[key[i]] = value;
+					}
+				}
+			} else {
+				// update one prop in one object
+				return obj[key] = value;
+			}
+		} else if (path.length == 0) {
+			return obj;
+		} else {
+			return updateState(obj[path[0]], path.slice(1), value, action, add, remove);
+		}
+	};
+
+
+	const runUpdate = (payload, sequenceId, preventRender, sequenceCache) => {
 
 		/// update state obj and rerender  ///
 		///////////////////////////////////// 
 
+		/* START.DEV_ONLY */
+		let prevState;
+		/* END.DEV_ONLY */
+    
 		const changedStateKeys = isArray(payload) ? 
 			[] : 
 			isDefined(payload.path) ? 
 				payload.path[0] : 
 				undefined;
+        
+		/* START.DEV_ONLY */
+		if (isDefined(appTap.state)) prevState = JSON.stringify(appState);
+		/* END.DEV_ONLY */
 
 		if (isArray(payload)) {
-			let prevState;
-
-			/* START.DEV_ONLY */
-			if(isDefined(appTap.state)) {
-				prevState = JSON.stringify(appState);
-			}
-			/* END.DEV_ONLY */
-
 			for(let i = 0; i < payload.length; i++) {
 				const payloadObj = payload[i];
-				updateStateObj(appState, payloadObj.path, payloadObj.value, payloadObj.action, payloadObj.add, payloadObj.remove);
+				updateState(appState, payloadObj.path, payloadObj.value, payloadObj.action, payloadObj.add, payloadObj.remove);
 				changedStateKeys[i] = payloadObj.path[0];
 			}
-			/* START.DEV_ONLY */
-			if(isDefined(appTap.state)) {
-				appTap.state({prevState: JSON.parse(prevState), newState: appState, sequenceId});
-			}
-			/* END.DEV_ONLY */
-		} else {
-
-			let prevState;
-
-			/* START.DEV_ONLY */
-			if (isDefined(appTap.state)) {
-				prevState = JSON.stringify(appState);
-			}
-			/* END.DEV_ONLY */
-
-			updateStateObj(appState, payload.path, payload.value, payload.action, payload.add, payload.remove);
-
-			/* START.DEV_ONLY */
-			if (isDefined(appTap.state)) {
-				appTap.state({prevState: JSON.parse(prevState), newState: appState, sequenceId});
-			}
-			/* END.DEV_ONLY */
+		} 
+		else {
+			updateState(appState, payload.path, payload.value, payload.action, payload.add, payload.remove);
 		}
+    
+		/* START.DEV_ONLY */
+		if (isDefined(appTap.state)) appTap.state({prevState: JSON.parse(prevState), newState: appState, sequenceId});
+		/* END.DEV_ONLY */
 
 		// run subrciptions function every time state changes. Even with no render
 		app.runHandleSubs(appId);
 
 		if (!preventRender)  {
-			app.reRender(changedStateKeys, sequenceId, appId);
+			app.reRender(changedStateKeys, sequenceId, appId, sequenceCache);
 		} else {
-			exeQueuedMsgs(undefined, sequenceId);
+			exeQueuedMsgs(undefined, sequenceId, _, sequenceCache);
 		}
 
 	};
