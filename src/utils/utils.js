@@ -1,88 +1,57 @@
 /// UTILITIES ///
 
-export const isUndefined = (value) => {
-	return value === void 0;
-};
+export const isUndefined = value => value === void 0;
 
-export const isDefined = (value) => {
-	return value !== void 0;
-};
+export const isDefined = value => value !== void 0;
 
-export const isNull = (value) => {
-	return value === null;
-};
+export const isNull = value => value === null;
 
-export const isNotNull = (value) => {
-	return value !== null;
-};
+export const isNotNull = value => value !== null;
 
-export const isNullorUndef = (value) => {
-	return isUndefined(value) || isNull(value);
-};
+export const isNullorUndef = value => isUndefined(value) || isNull(value);
 
-export const isNotNullandIsDef = (value) => {
-	return value !== null && value !== void 0;
-};
+export const isNotNullandIsDef = value => value !== null && value !== void 0;
 
-export const isFalse = (value) => {
-	return value === false;
-};
+export const isFalse = value => value === false;
 
-export const isNotFalse = (value) => {
-	return value !== false;
-};
+export const isNotFalse = value => value !== false;
 
-export const isEmpty = (value) => {
-	return value === '';
-};
+export const isEmpty = value => value === '';
 
-export const isNotEmpty = (value) => {
-	return value !== '';
-};
+export const isNotEmpty = value => value !== '';
 
-export const isNullorUndeforEmpty = (value) => {
-	return isUndefined(value) || isNull(value) || isEmpty(value);
-};
+export const isNullorUndeforEmpty = value => isUndefined(value) || isNull(value) || isEmpty(value);
 
-export const isFunction = (value) => {
-	return typeof value === 'function';
-};
+export const isFunction = value => typeof value === 'function';
 
-export const isObject = (value) => {
-	return typeof value === 'object';
-};
+export const isObject = value => typeof value === 'object';
 
-export const isArray = (value) => {
-	return isNull(value) ? false : isObject(value) && isDefined(value.length);
-};
+export const isArray = Array.isArray;
 
-export const isNumber = (value) => {
-	return typeof value === 'number';
-};
+export const isNumber = value => typeof value === 'number';
 
-export const isString = (value) => {
-	return typeof value === 'string';
-};
+export const isString = value => typeof value === 'string';
 
-export const getLastItemsFromArr = (arr, noOfItems) => {
-	return arr[arr.length - noOfItems];
-};
+export const getLastItemsFromArr = (arr, noOfItems) => arr[arr.length - noOfItems];
 
-export const randomStringId = () => {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(2, 10);
+export const randomStringId = () => Math.random().toString(36).replace(/[^a-z]+/g, '').substr(2, 10);
+
+export const clearObject = obj => {
+	for (let prop in obj) {
+		delete obj[prop];
+	}
 };
 
 export const arraysAreEqual = (arr1, arr2) => {
 	const arr1Length = arr1.length;
 	const arr2Length = arr2.length;
-	if(arr1Length !== arr2Length) return false;
-	for(let i = 0; i < arr1Length; i++) {
-		if(arr1[i] !== arr2[i]) return false;
+	if (arr1Length !== arr2Length) return false;
+	for (let i = 0; i < arr1Length; i++) {
+		if (arr1[i] !== arr2[i]) return false;
 	}
 	return true;
 };
 
-const isArr = Array.isArray;
 const keyList = Object.keys;
 const hasProp = Object.prototype.hasOwnProperty;
 
@@ -90,8 +59,8 @@ export const objsAreEqual = (a, b) => {
 	if (a === b) return true;
   
 	if (a && b && typeof a == 'object' && typeof b == 'object') {
-		const arrA = isArr(a);
-		const arrB = isArr(b);
+		const arrA = isArray(a);
+		const arrB = isArray(b);
 		let i;
 		let length;
 		let key;

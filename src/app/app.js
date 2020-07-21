@@ -193,7 +193,7 @@ export const karbon = (() => ({
 		}
 	},
 
-	reRender(changedStateKeys, sequenceId, appId) {
+	reRender(changedStateKeys, sequenceId, appId, sequenceCache) {
 
 		renderApp(
 			this.appContainer[appId],
@@ -206,7 +206,7 @@ export const karbon = (() => ({
 			false,
 			undefined,
 			appId,
-			undefined
+			sequenceCache
 		);
 	}
 }))();

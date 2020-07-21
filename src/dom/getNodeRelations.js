@@ -23,29 +23,25 @@ export const getNodeRelations = (i, nodes, node, prevNode, nextNode, oldNode, pr
 			current = 'sibling';
 		}
 
-		if (isDefined(prevOldNode)) {
-			if(isNull(prevNode.props && isNotNull(prevOldNode.props))) {
-				actionPrev = 'removed';
-			}
+		if (isDefined(prevOldNode) && isNull(prevNode.props) && isNotNull(prevOldNode.props)) {
+			actionPrev = 'removed';
 		}
 	}
 
 	if (i < (nodes.length - nodesToSkip) - 1) {
-		if(nextNodeLevel < currentNodeLevel) {
+		if (nextNodeLevel < currentNodeLevel) {
 			next = 'parent';
-		} else if(nextNodeLevel > currentNodeLevel) {
+		} else if (nextNodeLevel > currentNodeLevel) {
 			next = 'child';
 		} else {
 			next = 'sibling';
 		}
 
-		if(isNull(nextNode.props)) {
+		if (isNull(nextNode.props)) {
 			actionNext = 'removed';
 		}
-		if(isDefined(nextOldNode)) {
-			if(isNull(nextOldNode.props)) {
-				actionNext = 'add';
-			}
+		if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
+			actionNext = 'add';
 		}
 	}
 
@@ -53,10 +49,8 @@ export const getNodeRelations = (i, nodes, node, prevNode, nextNode, oldNode, pr
 		action = 'removed';
 	}
 	
-	if (isDefined(oldNode)) {
-		if(isNull(oldNode.props)) {
-			action = 'add';
-		}
+	if (isDefined(oldNode) && isNull(oldNode.props)) {
+		action = 'add';
 	}
 
 	return {

@@ -1,4 +1,4 @@
-import { isDefined, isUndefined } from '../utils/utils';
+import { isEmpty, isNotEmpty, isString, isArray, isDefined, isUndefined } from '../utils/utils';
 
 let firstChildNode; 
 
@@ -8,21 +8,24 @@ export const updateChangedNode = (prop, value, node) => {
 
 	case 'class': {
 		node.removeAttribute(prop);
-		if(value.length > 0) {
-			node.classList.add(...value.filter(Boolean)); //filter out aall empty strings
+		if (isString(value) && isNotEmpty(value)) {
+			node.className = value;
 		}
+		else if (isArray(value) && value.length > 0) {
+			node.classList.add(...value.filter(Boolean)); //filter out aall empty strings
+		} 
 		break;
 	}
 	case 'style': {
 		const keys = Object.keys(value);
 		let styles = '';
-		for(let i = 0; i < keys.length; i++) {
+		for (let i = 0; i < keys.length; i++) {
 			const key = keys[i];
-			if(isDefined(value[key])) {
+			if (isDefined(value[key])) {
 				styles += `${key}:${value[key]}; `;
 			}
 		}
-		if (styles !== '') {	
+		if (isNotEmpty(styles)) {	
 			node.style.cssText = styles;
 		} else {
 			node.removeAttribute(prop);
@@ -30,9 +33,9 @@ export const updateChangedNode = (prop, value, node) => {
 		break;
 	}
 	case 'text':
-		if(node.hasChildNodes()) {
+		if (node.hasChildNodes()) {
 			firstChildNode = node.firstChild;
-			if(isDefined(firstChildNode.data)) {
+			if (isDefined(firstChildNode.data)) {
 				firstChildNode.data = value;
 			} else {
 				//if there is no text node create one
@@ -52,20 +55,19 @@ export const updateChangedNode = (prop, value, node) => {
 			}
 		}
 		// add new data attrs
-		for(let i = 0; i < value.length; i++) {
+		for (let i = 0; i < value.length; i++) {
 			const attrParts = value[i].split('=');
 			node.setAttribute('data-' + attrParts[0], attrParts[1] || '');
 		}
 		break;
 	default:
-		if(prop[0] === 'o' && prop[1] === 'n') {
-			node[prop] = null;
+		if (prop[0] === 'o' && prop[1] === 'n') {
 			node[prop] = event => value[0].apply(null, [...value.slice(1), event]);
 		}
-		else if(isUndefined(node[prop]) || node instanceof SVGElement) {
+		else if (isUndefined(node[prop]) || node instanceof SVGElement) {
 			node.setAttribute(prop, value);
 		}
-		else if(value === '') {
+		else if (isEmpty(value)) {
 			node[prop] = false;
 			node.removeAttribute(prop);
 		}

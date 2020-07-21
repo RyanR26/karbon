@@ -55,7 +55,7 @@ test('update node - add new props: id, class, style, text, data attr', () => {
         vNode('div', 'html', {}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'], oldDomNode)
     ];
     const vNodesArray = [
-        vNode('div', 'html', {text: 'this is a new text string', id: 'test-id', class: ['new-class'], style: {color: 'red', 'font-size': '10px'}, dataAttrs: ['data-test=test']}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'])
+        vNode('div', 'html', {text: 'this is a new text string', id: 'test-id', class: ['new-class'], style: {color: 'red', 'font-size': '10px'}, dataAttrs: ['test=test']}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'])
     ];
     createView(container, vNodesArray, PrevVNodesArray, ['stateKey1'], {}, {} );
     expect(document.body.innerHTML).toEqual('<div id="app"><div id="test-id" class="new-class" style="color: red; font-size: 10px;" data-test="test">this is a new text string</div></div>');
@@ -71,7 +71,7 @@ test('update node - remove props: id, class, style, text, data attr', () => {
         vNode('div', 'html', {}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'])
     ];
     const PrevVNodesArray = [
-        vNode('div', 'html', {text: 'this is a new text string', id: 'test-id', class: ['new-class'], style: {color: 'red', 'font-size': '10px'}, dataAttrs: ['data-test=test']}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'], oldDomNode)
+        vNode('div', 'html', {text: 'this is a new text string', id: 'test-id', class: ['new-class'], style: {color: 'red', 'font-size': '10px'}, dataAttrs: ['test=test']}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'], oldDomNode)
     ];
     createView(container, vNodesArray, PrevVNodesArray, ['stateKey1'], {}, {} );
     expect(document.body.innerHTML).toEqual('<div id="app"><div></div></div>');
@@ -84,10 +84,10 @@ test('update node - transform props: id, class, style, text, data attr', () => {
     const oldDomNode = document.getElementById('app').children[0];
     virtualDom.setInitialized(true);
     const vNodesArray = [
-        vNode('div', 'html', {text: 'this is an updated text string', id: 'updated-id', class: ['updated-class'], style: {color: 'blue', 'font-size': '20px'}, dataAttrs: ['data-test2=test2']}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'], oldDomNode)
+        vNode('div', 'html', {text: 'this is an updated text string', id: 'updated-id', class: ['updated-class'], style: {color: 'blue', 'font-size': '20px'}, dataAttrs: ['test2=test2']}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'], oldDomNode)
     ];
     const PrevVNodesArray = [
-        vNode('div', 'html', {text: 'this is a text string', id: 'test-id', class: ['new-class'], style: {color: 'red', 'font-size': '10px'}, dataAttrs: ['data-test=test']}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'], oldDomNode)
+        vNode('div', 'html', {text: 'this is a text string', id: 'test-id', class: ['new-class'], style: {color: 'red', 'font-size': '10px'}, dataAttrs: ['test=test']}, 1, false, _, _, _,'testComponent', 0, ['stateKey1'], oldDomNode)
     ];
     createView(container, vNodesArray, PrevVNodesArray, ['stateKey1'], {}, {} );
     // the order of style and class gets swapped but values are updated successfully

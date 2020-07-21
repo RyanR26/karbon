@@ -18,11 +18,11 @@ It has zero-dependencies and does not require compilation or tooling. It can sim
 
  - Zero dependencies
  - No compilation
- - Small size (~8k gz) 
+ - Small size (~7k gz) 
  - VDOM
- - Unique API
- - Single state app
- -  Effects api
+ - Single state
+ - Unique message system
+ - Effects API
  - Subscriptions API
 
  
@@ -98,7 +98,7 @@ The view function takes ***state*** and ***actions*** as arguments and must retu
  2. vnode close function 
  3. component creator function 
 
-The vnode creation api is unique to Karbon. It does not support JSX or any other vnode creator eg. hyperHTML etc. *(See api design docs for more details)*
+The vnode api is unique to Karbon. It does not support JSX or any other vnode creator eg. hyperHTML etc. *(See api design docs for more details)*
 
 *Above vnode functions shortened to **e, x, c** in the examples below but could be named anything the user desires.*
 
@@ -115,7 +115,7 @@ e('div', {
   text: 'text',
   id: 'id',
   class: ['class1', 'class2'],
-  dataAttrs: ['data-name=Harry','data-surname=Jones'],
+  dataAttrs: ['name=Harry', 'surname=Jones'],
   style: {color: 'red', 'font-weight': 'bold'}
   onclick: [actions.example.click, 'arg1', 'arg2'] // always an array with the function at position 1 and any arguments listed after.
 }, 
@@ -168,7 +168,9 @@ const app = {
     if(state.loggedIn) {
       e('div', { text: 'hello' + state.userName}); x('div') 
     } else {
-      e('div', { text: 'Please login'}); x('div') 
+      e('div', { text: 'Please login'}); 
+        e('button', { text: 'login'}); x('button')
+      x('div') 
     }
   }
 }; 
@@ -492,14 +494,33 @@ const app = {
     c({ Hello }, {
       props: { name: state.name },
       actions: { local },
-      subscribe: [ 'name' ]
+      subscribe: ['name']
     });
   }
 };
 
 run(app)
 ```
-In order to update our app state we need to dispatch a message via the `dispatch.msgs()` method. A message is a plain array which containes the message type and a payload. In this case our message type is *state* and our payload is an object which contains the path to the state property we want to update and the new value we want to display.
+
+
+**Messages**
+
+------------
+
+In order to update our app state we need to dispatch a message via the `dispatch.msgs()` method.
+
+A message is a plain array which contains, at minimum, the message type and a payload.
+
+There are 5 message types:
+- ***state***
+- ***effec*t**
+- ***control***
+- ***pipe***
+- ***cancel***
+
+*State*
+
+In this case our message type is *state* and our payload is an object which contains the path to the state property we want to update and the new value we want to display.
 
 ```js
 dispatch.msgs(
@@ -533,7 +554,7 @@ Multiple values can be updated using arrays:
 ```js
 dispatch.msgs(
   ['state', {
-    path: ['themes', 'light', ['color', 'background'],
+    path: ['themes', 'light', ['color', 'background']],
     value: ['red', 'black']
 }])
 ```
