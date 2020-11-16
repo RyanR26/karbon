@@ -227,6 +227,7 @@ export const createRunTime = (app, appId) => {
 				const findObjKeyByPrefix = id => {
 					let didFind = false;
 					for (let prop in updatesQueue) {
+            console.log(prop, id)
 						if (prop.indexOf(id) === 0) {
 							didFind = true;
 							updatesQueue[prop] = [];
