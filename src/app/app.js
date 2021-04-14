@@ -97,7 +97,7 @@ export const karbon = (() => ({
 
 			if (isUndefined(action.name)) {
 				Object.defineProperty(action.prototype,'name',{
-					get:function(){
+					get:function() {
 						return /function ([^(]*)/.exec( this+'' )[1];
 					}
 				});
@@ -209,5 +209,6 @@ export const karbon = (() => ({
 			sequenceCache
 		);
 	}
+  
 }))();
 

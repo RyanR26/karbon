@@ -12,7 +12,7 @@ export const updateChangedNode = (prop, value, node) => {
 			node.className = value;
 		}
 		else if (isArray(value) && value.length > 0) {
-			node.classList.add(...value.filter(Boolean)); //filter out aall empty strings
+			node.classList.add(...value.filter(Boolean)); //filter out all empty strings
 		} 
 		break;
 	}
@@ -62,7 +62,11 @@ export const updateChangedNode = (prop, value, node) => {
 		break;
 	default:
 		if (prop[0] === 'o' && prop[1] === 'n') {
-			node[prop] = event => value[0].apply(null, [...value.slice(1), event]);
+			if (isString(value)) {
+				node[prop] = null;
+			} else {
+				node[prop] = event => value[0].apply(null, [...value.slice(1), event]);
+			}
 		}
 		else if (isUndefined(node[prop]) || node instanceof SVGElement) {
 			node.setAttribute(prop, value);

@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /* eslint-disable indent */
 import { syncVNodes } from '../src/vdom/syncVNodes';
 
@@ -53,6 +54,20 @@ test('Normalise by level - first item in new array should be an empty vNode', ()
 test('Normalise by level - second item in old array should be an empty vNode', () => {
 	const sunkNodes = syncVNodes([vNode()], [vNode(_,_,_,2)], {}, {});
 	expect(sunkNodes.domNodesPrev[1]).toEqual(emptyVNodeStatic);
+});
+
+test('Normalise by level - all items in new array should be empty vNodes', () => {
+	const sunkNodes = syncVNodes([], [vNode(), vNode(), vNode()], {}, {});
+	expect(sunkNodes.domNodes[0]).toEqual(emptyVNodeStatic);
+  expect(sunkNodes.domNodes[1]).toEqual(emptyVNodeStatic);
+  expect(sunkNodes.domNodes[2]).toEqual(emptyVNodeStatic);
+});
+
+test('Normalise by level - all items in old array should be empty vNodes', () => {
+	const sunkNodes = syncVNodes([vNode(), vNode(), vNode()], [], {}, {});
+	expect(sunkNodes.domNodesPrev[0]).toEqual(emptyVNodeStatic);
+  expect(sunkNodes.domNodesPrev[1]).toEqual(emptyVNodeStatic);
+  expect(sunkNodes.domNodesPrev[2]).toEqual(emptyVNodeStatic);
 });
 
 const sunkNodes = syncVNodes(

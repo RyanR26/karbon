@@ -4,26 +4,6 @@ const props = [];
 const values = [];
 let newPropsKeys;
 let prevPropsKeys;
-
-const renderObj = {
-	should: null,
-	action: null,
-	keyedAction: null,
-	untrackedHtmlNodes: null,
-	props: null,
-	values: null
-};
-
-// set props on cached obj. Obj reuse instead of creating new obj. Memory mangement.
-const updateRenderObj = (should, action='none', keyedAction=null, props=null, values=null) => {
-	renderObj.should = should;
-	renderObj.action = action;
-	renderObj.keyedAction = keyedAction;
-	renderObj.untrackedHtmlNodes = untrackedHtmlNodes;
-	renderObj.props = props;
-	renderObj.values = values;
-};
-
 let prevProps;
 let newProps;
 let notChanged;
@@ -35,6 +15,26 @@ let forceReplace;
 const statefulElements = {
 	radio: true
 };
+
+const renderObj = {
+	should: null,
+	action: null,
+	keyedAction: null,
+	untrackedHtmlNodes: null,
+	props: null,
+	values: null
+};
+
+// set props on cached obj. Obj reuse instead of creating new obj. Memory management.
+const updateRenderObj = (should, action='none', keyedAction=null, props=null, values=null) => {
+	renderObj.should = should;
+	renderObj.action = action;
+	renderObj.keyedAction = keyedAction;
+	renderObj.untrackedHtmlNodes = untrackedHtmlNodes;
+	renderObj.props = props;
+	renderObj.values = values;
+};
+
 
 export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemovedFlag, currentLevel, forceUpdateStartLevel) => {
 
@@ -51,7 +51,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 	if (objNew.type !== objPrev.type || isNull(prevProps) || isNull(newProps) || isNotNull(objNew.keyedAction)) {
 		notChanged = false;
 	} else {
-		notChanged = (objsAreEqual(prevProps, newProps));
+		notChanged = objsAreEqual(prevProps, newProps);
 	}
 
 	overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && (currentLevel > forceUpdateStartLevel);
@@ -68,7 +68,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		// In such cases the children Dom els have been removed but the vdom
 		// nodes still remain unchanged (when comparing) and therefore dont trigger a
 		// dom update. We need to force creation of new nodes to replace those
-		// which were removed when parent was replaced. This overide continues for as long
+		// which were removed when parent was replaced. This override continues for as long
 		// as the node being added is a child of the parent which was replaced.
 		else {
 			updateRenderObj(true, 'newNode');
@@ -88,7 +88,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		
 		// when comparing 2 stateful elements - replace previous element with new as
 		// sometimes the new state is not applied. eg. radio box checked attribute when 
-		// the group is differnet from the previous.
+		// the group is different from the previous.
 		if (statefulElements[prevProps.type] && prevProps.type === newProps.type) {
 			forceReplace = true;
 		}
@@ -153,7 +153,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		for (let i = 0; i < prevPropsKeys.length; i++) {
 			const oldProp = prevPropsKeys[i];
 			if (newPropsKeys.indexOf(oldProp) === -1) {
-				// insert this at the beginning as clearing inerHTML will
+				// insert this at the beginning as clearing innerHTML will
 				// strip out any text nodes that are set before
 				if (oldProp !== 'innerHTML') {
 					props[props.length] = oldProp;
@@ -208,7 +208,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		}
 	}
 
-	// If prenode and node props are null do nothing
+	// If prev node and node props are null do nothing
 	// should never be the case but just here in case to prevent errors
 	else {
 		return false;

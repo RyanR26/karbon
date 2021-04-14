@@ -217,7 +217,7 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 	syncedVNodes = undefined;
 	subscribesTo = null;
 
-	//rest obj and arrays for reuse
+	//reset obj and arrays for reuse
 	clearObject(keyedNodeRecycleBin);
 	$_parentNodeStack.length = 0;
 	childNodeIndexes.length = 0;

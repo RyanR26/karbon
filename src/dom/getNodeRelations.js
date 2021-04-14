@@ -40,6 +40,7 @@ export const getNodeRelations = (i, nodes, node, prevNode, nextNode, oldNode, pr
 		if (isNull(nextNode.props)) {
 			actionNext = 'removed';
 		}
+    
 		if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
 			actionNext = 'add';
 		}

@@ -32,6 +32,8 @@ export const isNumber = value => typeof value === 'number';
 
 export const isString = value => typeof value === 'string';
 
+export const isPromise = value => value instanceof Promise;
+
 export const getLastItemsFromArr = (arr, noOfItems) => arr[arr.length - noOfItems];
 
 export const randomStringId = () => Math.random().toString(36).replace(/[^a-z]+/g, '').substr(2, 10);

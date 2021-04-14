@@ -48,18 +48,18 @@ export const createDomElement = node => {
 					el[prop][key] = value[key];
 				}
 			}
-		} else {
-			if (prop === 'text') {
-				el.textContent = value;
-			}
-			else if (prop === 'class') {
-				if (isNotEmpty(value)) el.className = value;
-			}
-			else if (isDefined(el[prop]) && !isSVG) {
-				el[prop] = value;
-			} else {
-				el.setAttribute(prop, value);
-			}
+		} 
+		else if (prop === 'text') {
+			el.textContent = value;
+		}
+		else if (prop === 'class') {
+			if (isNotEmpty(value)) el.className = value;
+		}
+		else if (isDefined(el[prop]) && !isSVG) {
+			el[prop] = value;
+		} 
+		else {
+			el.setAttribute(prop, value);
 		}
 	}
 	return el;

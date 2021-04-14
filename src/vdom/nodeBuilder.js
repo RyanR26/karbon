@@ -1,5 +1,5 @@
 /* eslint-disable no-mixed-spaces-and-tabs */
-import { isUndefined, isDefined, isArray, isFunction, clearObject } from '../utils/utils';
+import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise } from '../utils/utils';
 /* START.DEV_ONLY */
 import { checkPropTypes, propTypes } from '../utils/utils';
 /* END.DEV_ONLY */
@@ -7,6 +7,7 @@ import { voidedElements } from './voidedElements';
 import { createVNode } from './createVNode';
 
 const actionsCache = {};
+const lazyCache = {};
 
 export const nodeBuilder = (runTime, appGlobalActions) => {
 	
@@ -32,7 +33,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 	
 	const setKeyedNodesPrev = () => {
 		keyedNodesPrev = Object.assign({}, keyedNodes);
-		// reset keyeNodes Obj instead of creating new one
+		// reset keyedNodes Obj instead of creating new one
 		clearObject(keyedNodes);
 	};
 	
@@ -49,7 +50,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 
 		if (tagName === 'svg') renderingSvg = true;
 
-		// Dont cache args as vars as more performant - less garbage collection
+		// Don't cache args as vars as more performant - less garbage collection
 		// createElementObj args are :
 		// const createElementObj = (type, parentComponentIndex, id, data, level, key, parentComponentName, subscribesTo)
 		keyName = flags.key;
@@ -73,11 +74,14 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		// store all keyedNode children on the cached vNode so that when the parent is 
 		// moved the children are moved too and in order to splice back into
 		// the main vdom array for comparison
-		if (isDefined(keyedParent) && rootIndex > keyedParentLevel) {
-			keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
-		} else if (isDefined(keyedParent) && rootIndex === keyedParentLevel) {
-			keyedParent = undefined;
-			keyedParentLevel = undefined;
+    
+		if (isDefined(keyedParent)) {
+			if (rootIndex > keyedParentLevel) {
+			  keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
+		  } else if (rootIndex === keyedParentLevel) {
+			  keyedParent = undefined;
+				keyedParentLevel = undefined;
+			}
 		}
 
 		if (isKeyed) {
@@ -94,11 +98,6 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		if (!voidedElements[tagName]) {
 			rootIndex++;
 		}
-	};
-
-	const renderRootComponent = (comp, data) => {
-		// Render all components top down from root		
-		component(comp, data);
 	};
 	
 	const component = (comp, data = {}) => {
@@ -167,7 +166,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		}
     
 		/* END.DEV_ONLY */
-
+    
 		// run view render function //
 		// merge local and global actions objects to pass to component
 		view(
@@ -177,12 +176,50 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		)(
 			nodeOpen, 
 			nodeClose, 
-			component
+			component,
+			lazy
 		);
     
 		subscribesToArray.length = subscribesToArray.length - 1;
 		componentActiveArray.length = componentActiveArray.length - 1;
 		componentActiveIndexArray.length = componentActiveIndexArray.length - 1;
+	};
+
+
+	const lazy = (importModule, lazyComponent, loading, error, time) => {
+
+		const cacheKey = importModule.toString().replace(/ /g, '');
+
+		if (lazyCache[cacheKey] === 'error') {
+			if (isFunction(error)) error();
+		}
+		else if (lazyCache[cacheKey] !== undefined) {
+			const lazy = lazyCache[cacheKey][0];
+			if(isFunction(lazy)) lazy(lazyCache[cacheKey][1]);
+		} 
+		else {
+			if (isFunction(loading)) loading();
+			const thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
+			thenable
+				.then(module => {
+					setTimeout(() => {
+						lazyCache[cacheKey] = [lazyComponent, module];
+						runTime.forceReRender();
+						window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', {detail: { key: cacheKey }}));
+					}, time || 0);
+				})
+				.catch(error => {
+					console.error(error); // eslint-disable-line
+					lazyCache[cacheKey] = 'error';
+					runTime.forceReRender();
+					window.dispatchEvent(new CustomEvent('Lazy_Component_Error', {detail: { key: cacheKey }}));
+				});
+		}
+	};
+
+	const renderRootComponent = (comp, data) => {
+		// Render all components top down from root		
+		component(comp, data);
 	};
 
 	return {

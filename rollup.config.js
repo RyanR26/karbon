@@ -3,7 +3,6 @@ import babel from 'rollup-plugin-babel';
 import eslint from 'rollup-plugin-eslint';
 import uglify from 'rollup-plugin-uglify';
 import gzip from 'rollup-plugin-gzip';
-import server from 'rollup-plugin-server';
 import stripCode from 'rollup-plugin-strip-code';
 
 const configs = {

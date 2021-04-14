@@ -1,7 +1,7 @@
 {
   "name": "karbon",
   "version": "0.0.1",
-  "description": "JS UI framework with state mangement",
+  "description": "JS UI framework with state management",
   "main": "app.js",
   "scripts": {
     "build": "export BABEL_ENV=rollup; rollup -c -w",

@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { randomStringId, isDefined, isUndefined, isArray, isFunction, isNullorUndef, isNotNull, isNull, isNumber } from '../utils/utils';
+import { randomStringId, isDefined, isUndefined, isArray, isFunction, isNullorUndef, isNotNull, isNull, isNotNullandIsDef, isNumber, isPromise } from '../utils/utils';
 import { virtualDom } from '../vdom/vDomState';
 
 export const createRunTime = (app, appId) => {
@@ -42,7 +42,6 @@ export const createRunTime = (app, appId) => {
 			const sequenceCache = Object.assign({}, cache);
 			cache = undefined;
 			stampId = undefined;
-      
       
 			/* START.DEV_ONLY */
 			if (isDefined(appTap.dispatch)) appTap.dispatch({msgs, sequenceId});
@@ -108,10 +107,10 @@ export const createRunTime = (app, appId) => {
 	};
 
 	const processMsg = (sequenceId, msg, data, sequenceCache) => {
-		
+
 		let msgArray = !isFunction(msg) ?
 			msg :
-			isDefined(data) ?
+			isNotNullandIsDef(data) ?
 				msg(data === 'undefined' ? undefined : data, getState(), sequenceCache) :
 				msg(getState(), sequenceCache);
         
@@ -165,7 +164,7 @@ export const createRunTime = (app, appId) => {
 					effectFun(...msgPayload.args) :
 					effectFun(msgPayload.args);
 
-				if (effectOutput instanceof Promise) {
+				if (isPromise(effectOutput)) {
 					Promise.resolve(effectOutput).then(response => {
 						if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = response;
 						exeQueuedMsgs(response, sequenceId, _, sequenceCache);
@@ -206,9 +205,14 @@ export const createRunTime = (app, appId) => {
 
 			case 'control':
 
-				if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue)) {
-					if (!msgPayload.if && isNumber(msgPayload.continue)) {
-						updatesQueue[sequenceId].length = msgPayload.continue;
+				if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue) || isNumber(msgPayload.skip)) {
+					if (!msgPayload.if) {
+						if (isNumber(msgPayload.continue)) {
+							updatesQueue[sequenceId].length = msgPayload.continue;
+						} 
+						else if (isNumber(msgPayload.skip)) {
+							updatesQueue[sequenceId].splice(0, msgPayload.skip);
+						}
 					}
 					exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse , sequenceId, _, sequenceCache);
 				} else {
@@ -357,7 +361,7 @@ export const createRunTime = (app, appId) => {
 
 	const runUpdate = (payload, sequenceId, preventRender, sequenceCache) => {
 
-		/// update state obj and rerender  ///
+		/// update state obj and re-render  ///
 		///////////////////////////////////// 
 
 		/* START.DEV_ONLY */
@@ -389,7 +393,7 @@ export const createRunTime = (app, appId) => {
 		if (isDefined(appTap.state)) appTap.state({prevState: JSON.parse(prevState), newState: appState, sequenceId});
 		/* END.DEV_ONLY */
 
-		// run subrciptions function every time state changes. Even with no render
+		// run subscriptions function every time state changes. Even with no render
 		app.runHandleSubs(appId);
 
 		if (!preventRender)  {
@@ -400,10 +404,17 @@ export const createRunTime = (app, appId) => {
 
 	};
 
+	const forceReRender = () => {
+		// app.runHandleSubs(appId);
+    // console.log(getState())
+		app.reRender(undefined, undefined, appId);
+	};
+
 	return {
 		setState,
 		getState,
 		exeQueuedMsgs,
+		forceReRender,
 		stamp: updateMethods.stamp,
 		messages : updateMethods.messages
 	};

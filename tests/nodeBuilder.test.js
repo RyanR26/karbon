@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /* eslint-disable indent */
 import { nodeBuilder } from '../src/vdom/nodeBuilder';
 
@@ -9,13 +10,13 @@ const vNode = (type='div', lang='html', props={}, level=1, key=false, keyedActio
 	props,
 	level,
 	key,
-    keyedAction,
-    keyedChildren,
-    staticChildren,
+  keyedAction,
+  keyedChildren,
+  staticChildren,
 	parentComponent,
 	parentComponentIndex,
-    subscribesTo,
-    dom: null
+  subscribesTo,
+  dom: null
 });
 
 const mockRunTime = (stateObj) => {

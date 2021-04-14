@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 /* eslint-disable indent */
 import { createView } from '../src/dom/createView';
 import { virtualDom } from '../src/vdom/vDomState';
@@ -8,13 +9,13 @@ const emptyVNodeStatic = {
 	props: null,
 	level: undefined,
 	key: false,
-    keyedAction: null,
-    keyedChildren: null,
-    staticChildren: false,
+  keyedAction: null,
+  keyedChildren: null,
+  staticChildren: false,
 	parentComponent: null,
 	parentComponentIndex: null,
-    subscribesTo: null,
-    dom: null
+  subscribesTo: null,
+  dom: null
 };
 
 const vNode = (type='div', lang='html', props={}, level=1, key=false, keyedAction=null, keyedChildren=null, staticChildren=false, parentComponent, parentComponentIndex=0, subscribesTo=[], dom=null) => ({
@@ -23,13 +24,13 @@ const vNode = (type='div', lang='html', props={}, level=1, key=false, keyedActio
 	props,
 	level,
 	key,
-    keyedAction,
-    keyedChildren,
-    staticChildren,
+  keyedAction,
+  keyedChildren,
+  staticChildren,
 	parentComponent,
 	parentComponentIndex,
-    subscribesTo,
-    dom
+  subscribesTo,
+  dom
 });
 
 const _ = undefined;
