@@ -26,14 +26,14 @@ export const createDomElement = node => {
 
 		if (isObject(value)) {
 			if (isDefined(value.length)) { //Array
-			  if (prop[0] === 'o' && prop[1] === 'n') {
-					el[prop] = event => value[0].apply(null, [...value.slice(1), event]);
-				}
-				else if (prop === 'class') {
+				if (prop === 'class') {
 					const classList = value.filter(Boolean); //remove any empty strings
 					if (classList.length > 0) {
 						el.classList.add(...classList);
 					}
+				}
+			  else if (prop[0] === 'o' && prop[1] === 'n') {
+					el[prop] = event => value[0].apply(null, [...value.slice(1), event]);
 				}
 				else { // add data attrs
 					for (let i = 0; i < value.length; i++) {

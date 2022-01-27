@@ -104,6 +104,10 @@ var isString = function isString(value) {
 	return typeof value === 'string';
 };
 
+var isPromise = function isPromise(value) {
+	return value instanceof Promise;
+};
+
 var randomStringId = function randomStringId() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(2, 10);
 };
@@ -115,10 +119,8 @@ var clearObject = function clearObject(obj) {
 };
 
 var arraysAreEqual = function arraysAreEqual(arr1, arr2) {
-	var arr1Length = arr1.length;
-	var arr2Length = arr2.length;
-	if (arr1Length !== arr2Length) return false;
-	for (var i = 0; i < arr1Length; i++) {
+	if (arr1.length !== arr2.length) return false;
+	for (var i = 0; i < arr1.length; i++) {
 		if (arr1[i] !== arr2[i]) return false;
 	}
 	return true;
@@ -174,14 +176,25 @@ var checkPropTypes = function checkPropTypes(props, propTypes, componentName) {
 
 	if (isDefined(propTypes)) {
 		for (var key in propTypes) {
+
+			var success = false;
+			var failedKey = void 0;
+			var failedValue = void 0;
 			var value = propTypes[key];
-			if (value === 'array') {
-				if (!isArray(props[key])) {
-					propTypeFailed(key, value, componentName);
+
+			if (!isArray(value)) value = [value];
+
+			for (var i = 0; i < value.length; i++) {
+				var val = value[i];
+				if (val === 'array' && isArray(props[key]) || val === _typeof(props[key])) {
+					success = true;
+				} else {
+					failedKey = key;
+					failedValue = value;
 				}
-			} else if (value !== _typeof(props[key])) {
-				propTypeFailed(key, value, componentName);
 			}
+
+			if (!success) propTypeFailed(failedKey, failedValue, componentName);
 		}
 	}
 };
@@ -354,7 +367,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 	var processMsg = function processMsg(sequenceId, msg, data, sequenceCache) {
 
-		var msgArray = !isFunction(msg) ? msg : isDefined(data) ? msg(data === 'undefined' ? undefined : data, getState(), sequenceCache) : msg(getState(), sequenceCache);
+		var msgArray = !isFunction(msg) ? msg : isNotNullandIsDef(data) ? msg(data === 'undefined' ? undefined : data, getState(), sequenceCache) : msg(getState(), sequenceCache);
 
 		// allow for conditional msgs
 		if (isNull(msgArray)) {
@@ -376,7 +389,7 @@ var createRunTime = function createRunTime(app, appId) {
 				case 'state':
 					{
 
-						if (isDefined(renderFlags.syncNodes)) {
+						if (renderFlags.fixedDomShape) {
 							virtualDom.setSync(false);
 						} else {
 							virtualDom.setSync(true);
@@ -402,7 +415,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 						var effectOutput = isArray(msgPayload.args) ? effectFun.apply(undefined, toConsumableArray(msgPayload.args)) : effectFun(msgPayload.args);
 
-						if (effectOutput instanceof Promise) {
+						if (isPromise(effectOutput)) {
 							Promise.resolve(effectOutput).then(function (response) {
 								if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = response;
 								exeQueuedMsgs(response, sequenceId, _, sequenceCache);
@@ -444,9 +457,13 @@ var createRunTime = function createRunTime(app, appId) {
 
 				case 'control':
 
-					if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue)) {
-						if (!msgPayload.if && isNumber(msgPayload.continue)) {
-							updatesQueue[sequenceId].length = msgPayload.continue;
+					if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue) || isNumber(msgPayload.skip)) {
+						if (!msgPayload.if) {
+							if (isNumber(msgPayload.continue)) {
+								updatesQueue[sequenceId].length = msgPayload.continue;
+							} else if (isNumber(msgPayload.skip)) {
+								updatesQueue[sequenceId].splice(0, msgPayload.skip);
+							}
 						}
 						exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse, sequenceId, _, sequenceCache);
 					} else {
@@ -600,7 +617,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 	var runUpdate = function runUpdate(payload, sequenceId, preventRender, sequenceCache) {
 
-		/// update state obj and rerender  ///
+		/// update state obj and re-render  ///
 		///////////////////////////////////// 
 
 		/* START.DEV_ONLY */
@@ -627,7 +644,7 @@ var createRunTime = function createRunTime(app, appId) {
 		if (isDefined(appTap.state)) appTap.state({ prevState: JSON.parse(prevState), newState: appState, sequenceId: sequenceId });
 		/* END.DEV_ONLY */
 
-		// run subrciptions function every time state changes. Even with no render
+		// run subscriptions function every time state changes. Even with no render
 		app.runHandleSubs(appId);
 
 		if (!preventRender) {
@@ -637,10 +654,15 @@ var createRunTime = function createRunTime(app, appId) {
 		}
 	};
 
+	var forceReRender = function forceReRender() {
+		app.reRender(undefined, undefined, appId);
+	};
+
 	return {
 		setState: setState,
 		getState: getState,
 		exeQueuedMsgs: exeQueuedMsgs,
+		forceReRender: forceReRender,
 		stamp: updateMethods.stamp,
 		messages: updateMethods.messages
 	};
@@ -736,8 +758,9 @@ var createVNode = function createVNode(type, parentComponentIndex, data, level) 
 /* eslint-disable no-mixed-spaces-and-tabs */
 
 var actionsCache = {};
+var lazyCache = {};
 
-var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
+var nodeBuilder = function nodeBuilder(runTime, appGlobalActions, appId) {
 
 	var vDomNodesArray = [];
 	var componentActiveArray = [];
@@ -752,6 +775,8 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 	var vNode = void 0;
 	var rootIndex = 1;
 	var renderingSvg = false;
+	actionsCache[appId] = {};
+	lazyCache[appId] = {};
 
 	var getVDomNodesArray = function getVDomNodesArray() {
 		return vDomNodesArray;
@@ -767,7 +792,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 	var setKeyedNodesPrev = function setKeyedNodesPrev() {
 		keyedNodesPrev = Object.assign({}, keyedNodes);
-		// reset keyeNodes Obj instead of creating new one
+		// reset keyedNodes Obj instead of creating new one
 		clearObject(keyedNodes);
 	};
 
@@ -787,7 +812,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 		if (tagName === 'svg') renderingSvg = true;
 
-		// Dont cache args as vars as more performant - less garbage collection
+		// Don't cache args as vars as more performant - less garbage collection
 		// createElementObj args are :
 		// const createElementObj = (type, parentComponentIndex, id, data, level, key, parentComponentName, subscribesTo)
 		keyName = flags.key;
@@ -795,17 +820,19 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 		vNode = createVNode(tagName, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg);
 
-		// more performant than array.push()
 		vDomNodesArray[vDomNodesArray.length] = vNode;
 
 		// store all keyedNode children on the cached vNode so that when the parent is 
 		// moved the children are moved too and in order to splice back into
 		// the main vdom array for comparison
-		if (isDefined(keyedParent) && rootIndex > keyedParentLevel) {
-			keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
-		} else if (isDefined(keyedParent) && rootIndex === keyedParentLevel) {
-			keyedParent = undefined;
-			keyedParentLevel = undefined;
+
+		if (isDefined(keyedParent)) {
+			if (rootIndex > keyedParentLevel) {
+				keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
+			} else if (rootIndex === keyedParentLevel) {
+				keyedParent = undefined;
+				keyedParentLevel = undefined;
+			}
 		}
 
 		if (isKeyed) {
@@ -822,11 +849,6 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		if (!voidedElements[tagName]) {
 			rootIndex++;
 		}
-	};
-
-	var renderRootComponent = function renderRootComponent(comp, data) {
-		// Render all components top down from root		
-		component(comp, data);
 	};
 
 	var component = function component(comp) {
@@ -861,11 +883,11 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 				var actionsObj = dataActions[i];
 				var actionsName = Object.keys(actionsObj)[0];
 
-				if (isDefined(actionsCache[actionsName])) {
-					localActions[actionsName] = actionsCache[actionsName];
+				if (isDefined(actionsCache[appId][actionsName])) {
+					localActions[actionsName] = actionsCache[appId][actionsName];
 				} else {
 					localActions[actionsName] = actionsObj[actionsName]({ stamp: runTime.stamp, msgs: runTime.messages });
-					actionsCache[actionsName] = localActions[actionsName];
+					actionsCache[appId][actionsName] = localActions[actionsName];
 				}
 			}
 		}
@@ -893,11 +915,43 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 		// run view render function //
 		// merge local and global actions objects to pass to component
-		view(isDefined(propsFromState) ? Object.assign({}, data.props, propsFromState) : data.props, isDefined(localActions) || isDefined(appGlobalActions) ? Object.assign({}, localActions, appGlobalActions) : undefined, index)(nodeOpen, nodeClose, component);
+		view(isDefined(propsFromState) ? Object.assign({}, data.props, propsFromState) : data.props, isDefined(localActions) || isDefined(appGlobalActions) ? Object.assign({}, localActions, appGlobalActions) : undefined, index)(nodeOpen, nodeClose, component, lazy);
 
 		subscribesToArray.length = subscribesToArray.length - 1;
 		componentActiveArray.length = componentActiveArray.length - 1;
 		componentActiveIndexArray.length = componentActiveIndexArray.length - 1;
+	};
+
+	var lazy = function lazy(importModule, lazyComponent, loading, error, time) {
+
+		var cacheKey = importModule.toString().replace(/ /g, '');
+
+		if (lazyCache[appId][cacheKey] === 'error') {
+			if (isFunction(error)) error();
+		} else if (isDefined(lazyCache[appId][cacheKey])) {
+			var _lazy = lazyCache[appId][cacheKey][0];
+			if (isFunction(_lazy)) _lazy(lazyCache[appId][cacheKey][1]);
+		} else {
+			if (isFunction(loading)) loading();
+			var thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
+			thenable.then(function (module) {
+				setTimeout(function () {
+					lazyCache[appId][cacheKey] = [lazyComponent, module];
+					runTime.forceReRender();
+					window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+				}, time || 0);
+			}).catch(function (error) {
+				console.error(error); // eslint-disable-line
+				lazyCache[appId][cacheKey] = 'error';
+				runTime.forceReRender();
+				window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+			});
+		}
+	};
+
+	var renderRootComponent = function renderRootComponent(comp, data) {
+		// Render all components top down from root		
+		component(comp, data);
 	};
 
 	return {
@@ -939,17 +993,17 @@ var createDomElement = function createDomElement(node) {
 		if (isObject(value)) {
 			if (isDefined(value.length)) {
 				//Array
-				if (prop[0] === 'o' && prop[1] === 'n') {
-					el[prop] = function (event) {
-						return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
-					};
-				} else if (prop === 'class') {
+				if (prop === 'class') {
 					var classList = value.filter(Boolean); //remove any empty strings
 					if (classList.length > 0) {
 						var _el$classList;
 
 						(_el$classList = el.classList).add.apply(_el$classList, toConsumableArray(classList));
 					}
+				} else if (prop[0] === 'o' && prop[1] === 'n') {
+					el[prop] = function (event) {
+						return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
+					};
 				} else {
 					// add data attrs
 					for (var _i = 0; _i < value.length; _i++) {
@@ -965,16 +1019,14 @@ var createDomElement = function createDomElement(node) {
 					el[prop][key] = value[key];
 				}
 			}
+		} else if (prop === 'text') {
+			el.textContent = value;
+		} else if (prop === 'class') {
+			if (isNotEmpty(value)) el.className = value;
+		} else if (isDefined(el[prop]) && !isSVG) {
+			el[prop] = value;
 		} else {
-			if (prop === 'text') {
-				el.textContent = value;
-			} else if (prop === 'class') {
-				if (isNotEmpty(value)) el.className = value;
-			} else if (isDefined(el[prop]) && !isSVG) {
-				el[prop] = value;
-			} else {
-				el.setAttribute(prop, value);
-			}
+			el.setAttribute(prop, value);
 		}
 	};
 
@@ -988,6 +1040,17 @@ var props = [];
 var values = [];
 var newPropsKeys = void 0;
 var prevPropsKeys = void 0;
+var prevProps = void 0;
+var newProps = void 0;
+var notChanged = void 0;
+var untrackedHtmlNodes = void 0;
+var handleKeyedNode = void 0;
+var overrideDefaultAction = void 0;
+var forceReplace = void 0;
+
+var statefulElements = {
+	radio: true
+};
 
 var renderObj = {
 	should: null,
@@ -998,7 +1061,7 @@ var renderObj = {
 	values: null
 };
 
-// set props on cached obj. Obj reuse instead of creating new obj. Memory mangement.
+// set props on cached obj. Obj reuse instead of creating new obj. Memory management.
 var updateRenderObj = function updateRenderObj(should) {
 	var action = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'none';
 	var keyedAction = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
@@ -1011,18 +1074,6 @@ var updateRenderObj = function updateRenderObj(should) {
 	renderObj.untrackedHtmlNodes = untrackedHtmlNodes;
 	renderObj.props = props;
 	renderObj.values = values;
-};
-
-var prevProps = void 0;
-var newProps = void 0;
-var notChanged = void 0;
-var untrackedHtmlNodes = void 0;
-var handleKeyedNode = void 0;
-var overrideDefaultAction = void 0;
-var forceReplace = void 0;
-
-var statefulElements = {
-	radio: true
 };
 
 var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplacedFlag, nodeRemovedFlag, currentLevel, forceUpdateStartLevel) {
@@ -1057,7 +1108,7 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 		// In such cases the children Dom els have been removed but the vdom
 		// nodes still remain unchanged (when comparing) and therefore dont trigger a
 		// dom update. We need to force creation of new nodes to replace those
-		// which were removed when parent was replaced. This overide continues for as long
+		// which were removed when parent was replaced. This override continues for as long
 		// as the node being added is a child of the parent which was replaced.
 		else {
 				updateRenderObj(true, 'newNode');
@@ -1077,7 +1128,7 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 
 		// when comparing 2 stateful elements - replace previous element with new as
 		// sometimes the new state is not applied. eg. radio box checked attribute when 
-		// the group is differnet from the previous.
+		// the group is different from the previous.
 		if (statefulElements[prevProps.type] && prevProps.type === newProps.type) {
 			forceReplace = true;
 		}
@@ -1142,7 +1193,7 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 		for (var _i = 0; _i < prevPropsKeys.length; _i++) {
 			var oldProp = prevPropsKeys[_i];
 			if (newPropsKeys.indexOf(oldProp) === -1) {
-				// insert this at the beginning as clearing inerHTML will
+				// insert this at the beginning as clearing innerHTML will
 				// strip out any text nodes that are set before
 				if (oldProp !== 'innerHTML') {
 					props[props.length] = oldProp;
@@ -1194,7 +1245,7 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 				}
 			}
 
-			// If prenode and node props are null do nothing
+			// If prev node and node props are null do nothing
 			// should never be the case but just here in case to prevent errors
 			else {
 					return false;
@@ -1215,7 +1266,7 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 				} else if (isArray(value) && value.length > 0) {
 					var _node$classList;
 
-					(_node$classList = node.classList).add.apply(_node$classList, toConsumableArray(value.filter(Boolean))); //filter out aall empty strings
+					(_node$classList = node.classList).add.apply(_node$classList, toConsumableArray(value.filter(Boolean))); //filter out all empty strings
 				}
 				break;
 			}
@@ -1265,9 +1316,13 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 			break;
 		default:
 			if (prop[0] === 'o' && prop[1] === 'n') {
-				node[prop] = function (event) {
-					return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
-				};
+				if (isString(value)) {
+					node[prop] = null;
+				} else {
+					node[prop] = function (event) {
+						return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
+					};
+				}
 			} else if (isUndefined(node[prop]) || node instanceof SVGElement) {
 				node.setAttribute(prop, value);
 			} else if (isEmpty(value)) {
@@ -1297,7 +1352,7 @@ var emptyVNodeStatic = {
 var recycledVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recycled' });
 var recyclableVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recyclable' });
 
-// Algorithim for syncing prev vNode tree with new vNode tree
+// Algorithm for syncing prev vNode tree with new vNode tree
 // Each node in the vtree array needs to be compared to a node on the same level in the old tree
 var syncVNodes = function syncVNodes(domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) {
 
@@ -1305,242 +1360,249 @@ var syncVNodes = function syncVNodes(domNodes, domNodesPrev, keyedNodes, keyedNo
 	var node = void 0;
 	var breakLoop = false;
 
-	var _loop = function _loop(i) {
+	if (domNodes.length === 0) {
 
-		prevNode = domNodesPrev[i];
-		node = domNodes[i];
-		breakLoop = false;
+		for (var i = 0; i < domNodesPrev.length; i++) {
+			domNodes[i] = emptyVNodeStatic;
+		}
+	} else {
+		var _loop = function _loop(_i) {
 
-		if (isUndefined(prevNode)) {
-			domNodesPrev[i] = emptyVNodeStatic;
-		} else {
-			if (prevNode.level > node.level) {
-				domNodes.splice(i, 0, emptyVNodeStatic);
+			prevNode = domNodesPrev[_i];
+			node = domNodes[_i];
+			breakLoop = false;
+
+			if (isUndefined(prevNode)) {
+				domNodesPrev[_i] = emptyVNodeStatic;
+			} else if (isUndefined(node)) {
+				domNodes[_i] = emptyVNodeStatic;
+			} else if (prevNode.level > node.level) {
+				domNodes.splice(_i, 0, emptyVNodeStatic);
 			} else if (prevNode.level < node.level) {
-				domNodesPrev.splice(i, 0, emptyVNodeStatic);
+				domNodesPrev.splice(_i, 0, emptyVNodeStatic);
 			}
-		}
 
-		if (i === domNodes.length - 1) {
-			var remaining = domNodesPrev.length - domNodes.length;
-			if (remaining > 0) {
-				for (var x = 1; x <= remaining; x++) {
-					domNodes[domNodes.length] = emptyVNodeStatic;
-					breakLoop = true;
-				}
-			}
-		}
-
-		prevNode = domNodesPrev[i];
-		node = domNodes[i];
-
-		////////////////////// KEYED NODES //////////////////////////
-		/////////////////////////////////////////////////////////////
-
-		// 1: Insert old keyed node
-		// {key: false, props: null : {key: 'keyName'} or
-		// {key: 'keyName2', props: {}} : {key: 'keyName'} 
-		// Current node is keyed and prev node props is null or prev node is keyed but is not in prev pool (has been used already )
-		// Insert old keyed node (move from old location and insert) - the prev dom node does not exist (empty vnode) or has been moved already
-
-		// 2: Remove previous node
-		// {key: false, props: {} : {key: 'keyName'} or
-		// {key: 'keyName2', props: {}} : {key: 'keyName'} 
-		// Current node is keyed and prev node is not or prev node is keyed but not present in new pool (not part of new UI)
-		// For optimal performace we remove the previous node until we hit the next keyed node
-
-		// 3: Swap keyed nodes
-		// {key: 'keyName2'} : {key: 'keyName'} 
-		// Current node and prev nodes are keyed and both exist in the new pool (both make up part of the UI)
-		// swap the prev node with the current one
-
-		var keyedNodesPrevPool = keyedNodesPrev[node.level || prevNode.level];
-
-		if (isDefined(keyedNodesPrevPool)) {
-			// Check If existing pool of keyed Nodes - else skip
-
-			var isOldNodePresentInPrevKeyedPool = void 0;
-			var isOldNodePresentInNewKeyedPool = void 0;
-			var keyedParentLevel = void 0;
-
-			if (isNotFalse(node.key) && prevNode.key !== node.key) {
-				// New node is keyed
-
-				// Check if old node is keyed too, or if it is, if it still exists in the old pool. IF it does not
-				// exist in the old pool then it has already been reused and deleted from the pool. 
-				isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
-				// If old node is keyed - check if is it needed in the next rendered UI
-				isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[node.level]) ? false : isDefined(keyedNodes[node.level][prevNode.key]);
-
-				// Keep track of the highest most keyed parent.
-				// Any children of this keyed element need to be stored against the
-				// keyedChildren prop on the vNode
-				//////////////////////////////////////////////////////////////////////////////
-
-				if (node.level <= keyedParentLevel) {
-					keyedParentLevel = undefined;
-				}
-
-				keyedParentLevel = isDefined(keyedParentLevel) ? keyedParentLevel : node.level;
-
-				////////////////////////////////////////////
-				////////////////////////////////////////////
-
-				// Try to retrieve current keyed node from prev keyed pool
-				var prevKeyedNode = keyedNodesPrevPool[node.key];
-
-				// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).
-				if (isDefined(prevKeyedNode)) {
-
-					var addKeyedChildrenToOldTree = function addKeyedChildrenToOldTree() {
-						if (prevKeyedNode.keyedChildren.length > 0) {
-							var childrenCount = 0;
-							while (isDefined(domNodesPrev[i + childrenCount + 1]) && domNodesPrev[i + childrenCount + 1].level > keyedParentLevel) {
-								childrenCount++;
-							}
-							domNodesPrev.splice.apply(domNodesPrev, [i + 1, childrenCount].concat(toConsumableArray(prevKeyedNode.keyedChildren)));
-						}
-					};
-
-					// 1: Insert old (recycled) keyed node
-					////////////////////////////////
-					if (isNull(prevNode.props) || isNotFalse(prevNode.key) && !isOldNodePresentInPrevKeyedPool) {
-						// prev node is empty or has already been used already so we can replace the vNode with 
-						// the prevKeyedNode vNode for comparison of attributes.
-						domNodesPrev[i] = prevKeyedNode;
-						node.keyedAction = 'insertOld'; // set action for use in patch function
-						// match all children of keyed parent node with their old vNodes counterparts
-						addKeyedChildrenToOldTree();
+			if (_i === domNodes.length - 1) {
+				var remaining = domNodesPrev.length - domNodes.length;
+				if (remaining > 0) {
+					for (var x = 1; x <= remaining; x++) {
+						domNodes[domNodes.length] = emptyVNodeStatic;
+						breakLoop = true;
 					}
-					// 2: Remove previous node (keyed or non-keyed)
-					//////////////////////////////////////////////////////////
-					else if (isFalse(prevNode.key) || !isOldNodePresentInNewKeyedPool) {
-							domNodes.splice(i, 0, emptyVNodeStatic);
-							node = domNodes[i];
-						}
-						// 3: Swap keyed nodes
-						//////////////////////
-						else {
-								domNodesPrev[i] = prevKeyedNode;
-								node.keyedAction = 'swap';
-								// match all children of keyed parent node with their old vNodes counterparts
-								addKeyedChildrenToOldTree();
-							}
-					// once keyed node has been reused remove it from pool
-					delete keyedNodesPrevPool[node.key];
-
-					// Insert a new keyed node.
-					//////////////////////////
-				} else {
-					if (isNull(prevNode.props)) {
-						domNodesPrev[i] = emptyVNodeStatic;
-					} else {
-						domNodesPrev.splice(i, 0, emptyVNodeStatic);
-					}
-					node.keyedAction = 'insertNew';
 				}
 			}
 
-			//if keys match we still want to update any props that might have changed
-			else if (isNotFalse(node.key) && prevNode.key === node.key) {
-					node.keyedAction = 'updateAttrs';
-				}
+			prevNode = domNodesPrev[_i];
+			node = domNodes[_i];
 
-				// 1: Insert new unkeyed node
-				// {key: 'keyName'} : {key: false, props: {}}
-				// Prev is keyed and is present in the prevKeyed pool (hasnt been used yet) and is present in newPool (will be rendered in current UI)
-				// Action - splice empty node in prevNodesArray and change node.keyedAction to 'insertNew' 
-				// This will insert the node at the index of the current keyed node and push the perev keyed node down until it either reaches
-				// its match in the new nodes array or a diff element where another ection takes place
+			////////////////////// KEYED NODES //////////////////////////
+			/////////////////////////////////////////////////////////////
 
-				// 2: Ignore recycled key node
-				// {key: 'keyName'} : {key: false, props: {}}
-				// Prev is keyed and is NOT present in the prevKeyed pool (has already been used) and is present in newPool (has been been rendered in current UI)
-				// Prev node has been moved to another postion in the DOM already ie. has been 'recycled'
-				// Action - splice a new empty node into the current nodes array stating this
-				// Reconciler will ignore these nodes and decrement the dom child index
-				// synced nodes = {key: 'keyName'} : {key: 'keyName, keyedAction: 'recycled', props: null}
+			// 1: Insert old keyed node
+			// {key: false, props: null : {key: 'keyName'} or
+			// {key: 'keyName2', props: {}} : {key: 'keyName'} 
+			// Current node is keyed and prev node props is null or prev node is keyed but is not in prev pool (has been used already )
+			// Insert old keyed node (move from old location and insert) - the prev dom node does not exist (empty vnode) or has been moved already
 
-				// 3: Replace old keyed node with unkeyed node
-				// {key: 'keyName'} : {key: false, props: {}}
-				// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
-				// Action - Prev keyed node can be removed as it doesn make up part of the UI anymore
-				// Make prev node key = false to trigger replace update
+			// 2: Remove previous node
+			// {key: false, props: {} : {key: 'keyName'} or
+			// {key: 'keyName2', props: {}} : {key: 'keyName'} 
+			// Current node is keyed and prev node is not or prev node is keyed but not present in new pool (not part of new UI)
+			// For optimal performance we remove the previous node until we hit the next keyed node
 
-				// 4: Remove old keyed node 
-				// {key: 'keyName'} : {key: false, props: null}
-				// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
-				// Action - remove prev keyed node from dom
+			// 3: Swap keyed nodes
+			// {key: 'keyName2'} : {key: 'keyName'} 
+			// Current node and prev nodes are keyed and both exist in the new pool (both make up part of the UI)
+			// swap the prev node with the current one
 
-				// 5: Recycle old keyed node 
-				// {key: 'keyName'} : {key: false, props: null}
-				// Prev is keyed and is present in newPool (will be rendered in current UI)
-				// Action - change node.keyedAction to 'recycle'
-				// Skip over this as the node will be used later on
+			var keyedNodesPrevPool = keyedNodesPrev[node.level || prevNode.level];
 
+			if (isDefined(keyedNodesPrevPool)) {
+				// Check If existing pool of keyed Nodes - else skip
 
-				else if (isNotFalse(prevNode.key) && prevNode.key !== node.key) {
-						// Old node is keyed
+				var isOldNodePresentInPrevKeyedPool = void 0;
+				var isOldNodePresentInNewKeyedPool = void 0;
+				var keyedParentLevel = void 0;
 
-						isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
-						isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[prevNode.level]) ? false : isDefined(keyedNodes[prevNode.level][prevNode.key]);
+				if (isNotFalse(node.key) && prevNode.key !== node.key) {
+					// New node is keyed
 
-						var removeKeyedChildrenFromOldTree = function removeKeyedChildrenFromOldTree() {
-							if (prevNode.keyedChildren.length > 0) {
+					// Check if old node is keyed too, or if it is, if it still exists in the old pool. IF it does not
+					// exist in the old pool then it has already been reused and deleted from the pool. 
+					isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
+					// If old node is keyed - check if is it needed in the next rendered UI
+					isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[node.level]) ? false : isDefined(keyedNodes[node.level][prevNode.key]);
+
+					// Keep track of the highest most keyed parent.
+					// Any children of this keyed element need to be stored against the
+					// keyedChildren prop on the vNode
+					//////////////////////////////////////////////////////////////////////////////
+
+					if (node.level <= keyedParentLevel) {
+						keyedParentLevel = undefined;
+					}
+
+					keyedParentLevel = isDefined(keyedParentLevel) ? keyedParentLevel : node.level;
+
+					////////////////////////////////////////////
+					////////////////////////////////////////////
+
+					// Try to retrieve current keyed node from prev keyed pool
+					var prevKeyedNode = keyedNodesPrevPool[node.key];
+
+					// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).
+					if (isDefined(prevKeyedNode)) {
+
+						var addKeyedChildrenToOldTree = function addKeyedChildrenToOldTree() {
+							if (prevKeyedNode.keyedChildren.length > 0) {
 								var childrenCount = 0;
-								while (isDefined(domNodesPrev[i + childrenCount + 1]) && domNodesPrev[i + childrenCount + 1].level > prevNode.level) {
+								while (isDefined(domNodesPrev[_i + childrenCount + 1]) && domNodesPrev[_i + childrenCount + 1].level > keyedParentLevel) {
 									childrenCount++;
 								}
-								domNodesPrev.splice(i + 1, childrenCount);
+								domNodesPrev.splice.apply(domNodesPrev, [_i + 1, childrenCount].concat(toConsumableArray(prevKeyedNode.keyedChildren)));
 							}
 						};
 
-						if (isNotNull(node.props)) {
-							// 1: Insert New keyed/unkeyed node
-							/////////////////////////////
-							if (isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
-								domNodesPrev.splice(i, 0, emptyVNodeStatic);
-								node.keyedAction = 'insertNew';
-								removeKeyedChildrenFromOldTree();
-							}
-							// 2: Ignore recycled keyed node (has alreedy been used)
-							///////////////////////////////
-							else if (!isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
-									domNodes.splice(i, 0, recycledVNodeStatic);
-									removeKeyedChildrenFromOldTree();
-								}
-								// 3: Replace old keyed node with unkeyed node
-								//////////////////////////////////////////////
-								else if (!isOldNodePresentInNewKeyedPool) {
-										prevNode.key = false;
-										// no need to remove children of keyed node from tree as the nodeRemovedFlag 
-										// in 'CreateView' is being used to skip over these
-									}
-						} else {
-							// 4: Remove old keyed node 
-							///////////////////////////
-							if (!isOldNodePresentInNewKeyedPool) {
-								prevNode.key = false;
-								// no need to remove children of keyed node from tree as the nodeRemovedFlag 
-								// in 'CreateView' is being used to skip over these
-							}
-							// 5: Mark old keyed node as Recyclable
-							////////////////////////////
-							else {
-									domNodes[i] = recyclableVNodeStatic;
-									removeKeyedChildrenFromOldTree();
-								}
+						// 1: Insert old (recycled) keyed node
+						////////////////////////////////
+						if (isNull(prevNode.props) || isNotFalse(prevNode.key) && !isOldNodePresentInPrevKeyedPool) {
+							// prev node is empty or has already been used already so we can replace the vNode with 
+							// the prevKeyedNode vNode for comparison of attributes.
+							domNodesPrev[_i] = prevKeyedNode;
+							node.keyedAction = 'insertOld'; // set action for use in patch function
+							// match all children of keyed parent node with their old vNodes counterparts
+							addKeyedChildrenToOldTree();
 						}
+						// 2: Remove previous node (keyed or non-keyed)
+						//////////////////////////////////////////////////////////
+						else if (isFalse(prevNode.key) || !isOldNodePresentInNewKeyedPool) {
+								domNodes.splice(_i, 0, emptyVNodeStatic);
+								node = domNodes[_i];
+							}
+							// 3: Swap keyed nodes
+							//////////////////////
+							else {
+									domNodesPrev[_i] = prevKeyedNode;
+									node.keyedAction = 'swap';
+									// match all children of keyed parent node with their old vNodes counterparts
+									addKeyedChildrenToOldTree();
+								}
+						// once keyed node has been reused remove it from pool
+						delete keyedNodesPrevPool[node.key];
+
+						// Insert a new keyed node.
+						//////////////////////////
+					} else {
+						if (isNull(prevNode.props)) {
+							domNodesPrev[_i] = emptyVNodeStatic;
+						} else {
+							domNodesPrev.splice(_i, 0, emptyVNodeStatic);
+						}
+						node.keyedAction = 'insertNew';
 					}
+				}
+
+				//if keys match we still want to update any props that might have changed
+				else if (isNotFalse(node.key) && prevNode.key === node.key) {
+						node.keyedAction = 'updateAttrs';
+					}
+
+					// 1: Insert new unkeyed node
+					// {key: 'keyName'} : {key: false, props: {}}
+					// Prev is keyed and is present in the prevKeyed pool (hasn't been used yet) and is present in newPool (will be rendered in current UI)
+					// Action - splice empty node in prevNodesArray and change node.keyedAction to 'insertNew' 
+					// This will insert the node at the index of the current keyed node and push the prev keyed node down until it either reaches
+					// its match in the new nodes array or a diff element where another action takes place
+
+					// 2: Ignore recycled key node
+					// {key: 'keyName'} : {key: false, props: {}}
+					// Prev is keyed and is NOT present in the prevKeyed pool (has already been used) and is present in newPool (has been been rendered in current UI)
+					// Prev node has been moved to another position in the DOM already ie. has been 'recycled'
+					// Action - splice a new empty node into the current nodes array stating this
+					// Reconciler will ignore these nodes and decrement the dom child index
+					// synced nodes = {key: 'keyName'} : {key: 'keyName, keyedAction: 'recycled', props: null}
+
+					// 3: Replace old keyed node with unkeyed node
+					// {key: 'keyName'} : {key: false, props: {}}
+					// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
+					// Action - Prev keyed node can be removed as it doesn't make up part of the UI anymore
+					// Make prev node key = false to trigger replace update
+
+					// 4: Remove old keyed node 
+					// {key: 'keyName'} : {key: false, props: null}
+					// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
+					// Action - remove prev keyed node from dom
+
+					// 5: Recycle old keyed node 
+					// {key: 'keyName'} : {key: false, props: null}
+					// Prev is keyed and is present in newPool (will be rendered in current UI)
+					// Action - change node.keyedAction to 'recycle'
+					// Skip over this as the node will be used later on
+
+
+					else if (isNotFalse(prevNode.key) && prevNode.key !== node.key) {
+							// Old node is keyed
+
+							isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
+							isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[prevNode.level]) ? false : isDefined(keyedNodes[prevNode.level][prevNode.key]);
+
+							var removeKeyedChildrenFromOldTree = function removeKeyedChildrenFromOldTree() {
+								if (prevNode.keyedChildren.length > 0) {
+									var childrenCount = 0;
+									while (isDefined(domNodesPrev[_i + childrenCount + 1]) && domNodesPrev[_i + childrenCount + 1].level > prevNode.level) {
+										childrenCount++;
+									}
+									domNodesPrev.splice(_i + 1, childrenCount);
+								}
+							};
+
+							if (isNotNull(node.props)) {
+								// 1: Insert New keyed/unkeyed node
+								/////////////////////////////
+								if (isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
+									domNodesPrev.splice(_i, 0, emptyVNodeStatic);
+									node.keyedAction = 'insertNew';
+									removeKeyedChildrenFromOldTree();
+								}
+								// 2: Ignore recycled keyed node (has already been used)
+								///////////////////////////////
+								else if (!isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
+										domNodes.splice(_i, 0, recycledVNodeStatic);
+										removeKeyedChildrenFromOldTree();
+									}
+									// 3: Replace old keyed node with unkeyed node
+									//////////////////////////////////////////////
+									else if (!isOldNodePresentInNewKeyedPool) {
+											prevNode.key = false;
+											// no need to remove children of keyed node from tree as the nodeRemovedFlag 
+											// in 'CreateView' is being used to skip over these
+										}
+							} else {
+								// 4: Remove old keyed node 
+								///////////////////////////
+								if (!isOldNodePresentInNewKeyedPool) {
+									prevNode.key = false;
+									// no need to remove children of keyed node from tree as the nodeRemovedFlag 
+									// in 'CreateView' is being used to skip over these
+								}
+								// 5: Mark old keyed node as Recyclable
+								////////////////////////////
+								else {
+										domNodes[_i] = recyclableVNodeStatic;
+										removeKeyedChildrenFromOldTree();
+									}
+							}
+						}
+			}
+
+			if (breakLoop && domNodes.length === domNodesPrev.length) return 'break';
+		};
+
+		for (var _i = 0; _i < domNodes.length; _i++) {
+			var _ret = _loop(_i);
+
+			if (_ret === 'break') break;
 		}
-
-		if (breakLoop && domNodes.length === domNodesPrev.length) return 'break';
-	};
-
-	for (var i = 0; i < domNodes.length; i++) {
-		var _ret = _loop(i);
-
-		if (_ret === 'break') break;
 	}
 
 	return {
@@ -1588,17 +1650,14 @@ var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextN
 
 		if (isNull(nextNode.props)) {
 			actionNext = 'removed';
-		}
-		if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
+		} else if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
 			actionNext = 'add';
 		}
 	}
 
 	if (isNull(node.props)) {
 		action = 'removed';
-	}
-
-	if (isDefined(oldNode) && isNull(oldNode.props)) {
+	} else if (isDefined(oldNode) && isNull(oldNode.props)) {
 		action = 'add';
 	}
 
@@ -1722,7 +1781,7 @@ var patch = function patch() {
 				{
 					$_currentNode = createDomElement(node);
 					node.dom = $_currentNode;
-					replaceNode($_parentNode, $_currentNode, prevNode.dom, currentLevel);
+					replaceNode($_parentNode, $_currentNode, prevNode.dom);
 					nodeReplacedFlag = true;
 					forceUpdateStartLevel = currentLevel;
 					domOpsCount++;
@@ -1824,7 +1883,7 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 	syncedVNodes = undefined;
 	subscribesTo = null;
 
-	//rest obj and arrays for reuse
+	//reset obj and arrays for reuse
 	clearObject(keyedNodeRecycleBin);
 	$_parentNodeStack.length = 0;
 	childNodeIndexes.length = 0;
@@ -1919,7 +1978,7 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 					node.dom = prevNode.dom;
 					$_currentNode = node.dom;
 				} else {
-					// not listening to current state change but needs to rerenderd for sum reason eg. parent node was replaced
+					// not listening to current state change but needs to re-rendered for sum reason eg. parent node was replaced
 					patch();
 				}
 			}
@@ -1955,14 +2014,14 @@ var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActi
 		nodeBuilderInstance.resetVDomNodesArray();
 	} else {
 		vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions, changedStateKeys);
+		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions, appId);
 		nodeBuilderInstance = vdomNodeBuilder[appId];
 	}
 
 	nodeBuilderInstance.setKeyedNodesPrev();
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() });
 
-	createView(appContainer, nodeBuilderInstance.getVDomNodesArray(), vDomNodesArrayPrevious, changedStateKeys, nodeBuilderInstance.getKeyedNodes(), nodeBuilderInstance.getKeyedNodesPrev(), appId);
+	createView(appContainer, nodeBuilderInstance.getVDomNodesArray(), vDomNodesArrayPrevious, changedStateKeys, nodeBuilderInstance.getKeyedNodes(), nodeBuilderInstance.getKeyedNodesPrev());
 
 	if (!firstRender) {
 		runTime.exeQueuedMsgs(undefined, sequenceId, undefined, sequenceCache);
@@ -2154,11 +2213,11 @@ var karbon = function () {
 }();
 
 var run = void 0;
-if (document.currentScript && "noModule" in document.currentScript) {
-    run = karbon.run.bind(karbon);
+if (document.currentScript && 'noModule' in document.currentScript) {
+	run = karbon.run.bind(karbon);
 } else {
-    window.karbon = {};
-    window.karbon.run = karbon.run.bind(karbon);
+	window.karbon = {};
+	window.karbon.run = karbon.run.bind(karbon);
 }
 
 export { run };

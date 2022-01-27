@@ -135,7 +135,7 @@ export const createRunTime = (app, appId) => {
 
 			case 'state': {
 
-				if (isDefined(renderFlags.syncNodes)) {
+				if (renderFlags.fixedDomShape) {
 					virtualDom.setSync(false);
 				} else {
 					virtualDom.setSync(true);
@@ -405,8 +405,6 @@ export const createRunTime = (app, appId) => {
 	};
 
 	const forceReRender = () => {
-		// app.runHandleSubs(appId);
-    // console.log(getState())
 		app.reRender(undefined, undefined, appId);
 	};
 

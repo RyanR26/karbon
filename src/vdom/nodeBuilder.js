@@ -9,8 +9,8 @@ import { createVNode } from './createVNode';
 const actionsCache = {};
 const lazyCache = {};
 
-export const nodeBuilder = (runTime, appGlobalActions) => {
-	
+export const nodeBuilder = (runTime, appGlobalActions, appId) => {
+
 	const vDomNodesArray = [];
 	const componentActiveArray = [];
 	const componentActiveIndexArray = [];
@@ -24,6 +24,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 	let vNode;
 	let rootIndex = 1;
 	let renderingSvg = false;
+	actionsCache[appId] = {};
+	lazyCache[appId] = {};
 
 	const getVDomNodesArray = () => vDomNodesArray;
 	
@@ -68,7 +70,6 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			renderingSvg
 		);
 		
-		// more performant than array.push()
 		vDomNodesArray[vDomNodesArray.length] = vNode;
 
 		// store all keyedNode children on the cached vNode so that when the parent is 
@@ -130,11 +131,11 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 				const actionsObj = dataActions[i];
 				const actionsName = Object.keys(actionsObj)[0];
 
-				if (isDefined(actionsCache[actionsName])) {
-					localActions[actionsName] = actionsCache[actionsName];
+				if (isDefined(actionsCache[appId][actionsName])) {
+					localActions[actionsName] = actionsCache[appId][actionsName];
 				} else {
 					localActions[actionsName] = actionsObj[actionsName]({stamp: runTime.stamp, msgs: runTime.messages});
-					actionsCache[actionsName] = localActions[actionsName];
+					actionsCache[appId][actionsName] = localActions[actionsName];
 				}
 			}
 		}
@@ -190,12 +191,12 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 
 		const cacheKey = importModule.toString().replace(/ /g, '');
 
-		if (lazyCache[cacheKey] === 'error') {
+		if (lazyCache[appId][cacheKey] === 'error') {
 			if (isFunction(error)) error();
 		}
-		else if (lazyCache[cacheKey] !== undefined) {
-			const lazy = lazyCache[cacheKey][0];
-			if(isFunction(lazy)) lazy(lazyCache[cacheKey][1]);
+		else if (isDefined(lazyCache[appId][cacheKey])) {
+			const lazy = lazyCache[appId][cacheKey][0];
+			if (isFunction(lazy)) lazy(lazyCache[appId][cacheKey][1]);
 		} 
 		else {
 			if (isFunction(loading)) loading();
@@ -203,16 +204,16 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			thenable
 				.then(module => {
 					setTimeout(() => {
-						lazyCache[cacheKey] = [lazyComponent, module];
+						lazyCache[appId][cacheKey] = [lazyComponent, module];
 						runTime.forceReRender();
-						window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', {detail: { key: cacheKey }}));
+						window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
 					}, time || 0);
 				})
 				.catch(error => {
 					console.error(error); // eslint-disable-line
-					lazyCache[cacheKey] = 'error';
+					lazyCache[appId][cacheKey] = 'error';
 					runTime.forceReRender();
-					window.dispatchEvent(new CustomEvent('Lazy_Component_Error', {detail: { key: cacheKey }}));
+					window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
 				});
 		}
 	};

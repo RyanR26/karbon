@@ -114,7 +114,7 @@ const patch = () => {
 		case 'replaceNode' : {
 			$_currentNode = createDomElement(node);
 			node.dom = $_currentNode;
-			replaceNode($_parentNode, $_currentNode, prevNode.dom, currentLevel);
+			replaceNode($_parentNode, $_currentNode, prevNode.dom);
 			nodeReplacedFlag = true;
 			forceUpdateStartLevel = currentLevel;    
 			domOpsCount ++;
@@ -123,7 +123,7 @@ const patch = () => {
 
 		case 'removeNode' : {
 			let nodeToRemove = prevNode.dom;
-			if(isNotNullandIsDef(nodeToRemove)) {
+			if (isNotNullandIsDef(nodeToRemove)) {
 				$_parentNode.removeChild(nodeToRemove);
 				nodeToRemove = null;
 				childNodeIndexes[currentLevel]--;
@@ -135,7 +135,7 @@ const patch = () => {
 		}
 
 		case 'recyclable': {
-			if(isUndefined(keyedNodeRecycleBin[prevNode.key])) {
+			if (isUndefined(keyedNodeRecycleBin[prevNode.key])) {
 				keyedNodeRecycleBin[prevNode.key] = true;
 			} else {
 				childNodeIndexes[currentLevel]--;
@@ -158,7 +158,7 @@ const patch = () => {
 				$_parentNode.insertBefore(recycledDomNode, currentDomNode);
 				keyedNodeRecycleBin[node.key] = true;
 				domOpsCount ++;
-				if(renderNode.props.length > 0) {
+				if (renderNode.props.length > 0) {
 					updateProperties(renderNode.props, renderNode.values, $_currentNode);
 				}
 			}
@@ -166,7 +166,7 @@ const patch = () => {
 				swapElements($_parentNode, currentDomNode, recycledDomNode);
 				keyedNodeRecycleBin[node.key] = true;
 				domOpsCount ++;
-				if(renderNode.props.length > 0) {
+				if (renderNode.props.length > 0) {
 					updateProperties(renderNode.props, renderNode.values, $_currentNode);
 				}
 			} 
@@ -234,7 +234,7 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
   
 		if (!domOpsComplete) {
 
-			if(nodesToSkip > 0) {
+			if (nodesToSkip > 0) {
 				i = i + nodesToSkip;
 				nodesToSkip = 0;
 			}
@@ -330,7 +330,7 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 					node.dom = prevNode.dom;
 					$_currentNode = node.dom;
 				} else {
-					// not listening to current state change but needs to rerenderd for sum reason eg. parent node was replaced
+					// not listening to current state change but needs to re-rendered for sum reason eg. parent node was replaced
 					patch();
 				}
 			}

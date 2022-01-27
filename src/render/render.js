@@ -29,7 +29,7 @@ export const renderApp = (
 	} 
 	else {
 		vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions, changedStateKeys);
+		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions, appId);
 		nodeBuilderInstance = vdomNodeBuilder[appId];
 	}
 
@@ -42,8 +42,7 @@ export const renderApp = (
 		vDomNodesArrayPrevious,
 		changedStateKeys,
 		nodeBuilderInstance.getKeyedNodes(),
-		nodeBuilderInstance.getKeyedNodesPrev(),
-		appId
+		nodeBuilderInstance.getKeyedNodesPrev()
 	);
   
 	if (!firstRender) {

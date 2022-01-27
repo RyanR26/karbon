@@ -90,7 +90,7 @@ export const karbon = (() => ({
 		const subsStatus = [];
 		/* END.DEV_ONLY */
 
-		for(let i=0; i<subs.length; i++) {
+		for (let i=0; i<subs.length; i++) {
 
 			const sub = subs[i];
 			const action = isArray(sub.action) ? sub.action[0] : sub.action;
