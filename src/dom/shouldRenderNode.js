@@ -1,17 +1,5 @@
 import { isDefined, isNull, isNotNull, isObject, isArray, objsAreEqual, arraysAreEqual } from '../utils/utils';
 
-const props = [];
-const values = [];
-let newPropsKeys;
-let prevPropsKeys;
-let prevProps;
-let newProps;
-let notChanged;
-let untrackedHtmlNodes;
-let handleKeyedNode;
-let overrideDefaultAction;
-let forceReplace;
-
 const statefulElements = {
 	radio: true
 };
@@ -26,7 +14,14 @@ const renderObj = {
 };
 
 // set props on cached obj. Obj reuse instead of creating new obj. Memory management.
-const updateRenderObj = (should, action='none', keyedAction=null, props=null, values=null) => {
+const updateRenderObj = (
+	should, 
+	action='none', 
+	keyedAction=null, 
+	props=null, 
+	values=null, 
+	untrackedHtmlNodes=false
+) => {
 	renderObj.should = should;
 	renderObj.action = action;
 	renderObj.keyedAction = keyedAction;
@@ -35,18 +30,24 @@ const updateRenderObj = (should, action='none', keyedAction=null, props=null, va
 	renderObj.values = values;
 };
 
+export const shouldRenderNode = (
+	objPrev, 
+	objNew, 
+	nR, 
+	nodeReplacedFlag, 
+	nodeRemovedFlag, 
+	currentLevel, 
+	forceUpdateStartLevel
+) => {
 
-export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemovedFlag, currentLevel, forceUpdateStartLevel) => {
-
-	prevProps = objPrev.props;
-	newProps = objNew.props;
-	notChanged = true;
-	untrackedHtmlNodes = false;
-	handleKeyedNode = false;
-	forceReplace = false;
-	//reset arrays
-	props.length = 0;
-	values.length = 0;
+	const prevProps = objPrev.props;
+	const newProps = objNew.props;
+	const props = [];
+	const values = [];  
+	let notChanged = true;
+	let untrackedHtmlNodes = false;
+	let handleKeyedNode = false;
+	let forceReplace = false;
 
 	if (objNew.type !== objPrev.type || isNull(prevProps) || isNull(newProps) || isNotNull(objNew.keyedAction)) {
 		notChanged = false;
@@ -54,7 +55,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		notChanged = objsAreEqual(prevProps, newProps);
 	}
 
-	overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && (currentLevel > forceUpdateStartLevel);
+	const overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && (currentLevel > forceUpdateStartLevel);
 
 	if (overrideDefaultAction) {
 
@@ -103,7 +104,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		// because innerHTML will cause 'untracked' DOM nodes to be added we need to trigger
 		// a replacement of the node
 		if ((objNew.type !== objPrev.type || untrackedHtmlNodes || forceReplace) && !handleKeyedNode) {
-			updateRenderObj(true, 'replaceNode');
+			updateRenderObj(true, 'replaceNode', undefined, undefined, undefined, untrackedHtmlNodes);
 			return renderObj;
 		}
 
@@ -113,8 +114,8 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 
 		// created arrays once and reuse. reduce GC
 		// reset cached created array
-		newPropsKeys = Object.keys(newProps);
-		prevPropsKeys = Object.keys(prevProps);
+		const newPropsKeys = Object.keys(newProps);
+		const prevPropsKeys = Object.keys(prevProps);
 
 		let key;
 		let value;
@@ -183,9 +184,9 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 			untrackedHtmlNodes = true;
 		}
 		if (objNew.keyedAction === 'insertNew') {
-			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction);
+			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, undefined, undefined, untrackedHtmlNodes);
 		} else {
-			updateRenderObj(true, 'newNode', objPrev.keyedAction);
+			updateRenderObj(true, 'newNode', objPrev.keyedAction, undefined, undefined, untrackedHtmlNodes);
 		}
 
 		return renderObj;

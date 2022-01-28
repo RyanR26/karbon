@@ -1,7 +1,5 @@
 import { isEmpty, isNotEmpty, isString, isArray, isDefined, isUndefined } from '../utils/utils';
 
-let firstChildNode; 
-
 export const updateChangedNode = (prop, value, node) => {
 
 	switch (prop) {
@@ -34,7 +32,7 @@ export const updateChangedNode = (prop, value, node) => {
 	}
 	case 'text':
 		if (node.hasChildNodes()) {
-			firstChildNode = node.firstChild;
+			let firstChildNode = node.firstChild;
 			if (isDefined(firstChildNode.data)) {
 				firstChildNode.data = value;
 			} else {
@@ -47,7 +45,7 @@ export const updateChangedNode = (prop, value, node) => {
 		}
 		break;
 	case 'dataAttrs':
-		// remove al data attrs
+		// remove all data attrs
 		for (let i = 0; i < node.attributes.length; i++) {
 			if (/^data-/i.test(node.attributes[i].name)) {
 				node.removeAttribute(node.attributes[i].name);

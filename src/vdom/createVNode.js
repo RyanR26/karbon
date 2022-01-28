@@ -1,12 +1,19 @@
 import { isNull } from '../utils/utils';
 
-let elProps; 
-
-export const createVNode = (type, parentComponentIndex, data, level, key=false, staticChildren, parentComponent, subscribesTo, renderingSvg) => {
+export const createVNode = (
+	type, 
+	parentComponentIndex, 
+	data, 
+	level, 
+	key=false, 
+	staticChildren, 
+	parentComponent, 
+	subscribesTo, 
+	renderingSvg
+  ) => {
 
 	const props = {}; 
-
-	elProps = Object.keys(data);
+	const elProps = Object.keys(data);
 
 	for (let i = 0; i < elProps.length; i++) {
 		const prop = elProps[i];	

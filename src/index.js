@@ -1,7 +1,7 @@
 import { karbon } from './app/app';
 
 export let run; 
-if(document.currentScript && 'noModule' in document.currentScript) {
+if (document.currentScript && 'noModule' in document.currentScript) {
 	run = karbon.run.bind(karbon);
 } else {
 	window.karbon = {};

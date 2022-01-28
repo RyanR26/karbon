@@ -1,24 +1,17 @@
 /* eslint-disable no-mixed-spaces-and-tabs */
 import { isNotEmpty, isDefined, isObject } from '../utils/utils';
 
-let nodeProps;
-let elProps;
-let el;
-let isSVG = false;
+const documentCreateElement = (tag, isSVG) => isSVG ? 
+	document.createElementNS('http://www.w3.org/2000/svg', tag) :
+	document.createElement(tag);
 
 export const createDomElement = node => {
     
-	nodeProps = node.props;
-	elProps = Object.keys(nodeProps);
- 
-	if (node.lang !== 'xml') {
-		isSVG = false;
-		el = document.createElement(node.type);
-	} else {
-		isSVG = true;
-		el = document.createElementNS('http://www.w3.org/2000/svg', node.type);
-	}
-	
+	const nodeProps = node.props;
+	const elProps = Object.keys(nodeProps);
+	const isSVG = node.lang === 'xml';
+	const el = documentCreateElement(node.type, isSVG);
+  
 	for (let i = 0, len = elProps.length; i < len; i++) {
 
 		const prop = elProps[i];
