@@ -212,7 +212,7 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 				.catch(error => {
 					console.error(error); // eslint-disable-line
 					lazyCache[appId][cacheKey] = 'error';
-					runTime.forceReRender();
+					// runTime.forceReRender();
 					window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
 				});
 		}

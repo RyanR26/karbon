@@ -2,11 +2,19 @@
 import { subscription } from './subscription';
 import { isDefined, isUndefined, isNullorUndef, isFunction, isString, isArray } from '../utils/utils';
 import { createRunTime } from '../runTime/runTime';
-import { renderApp } from '../render/render';
+import { renderApp, renderString } from '../render/render';
 
 export const karbon = (() => ({
 
 	run(...appConfig) {
+		this.init(appConfig, false);
+	},
+
+	toString(...appConfig) {
+		return this.init(appConfig, true);
+	},
+
+	init(appConfig, renderToString) {
 
 		this.runTime = {};
 		this.appRootComponent = {};
@@ -27,7 +35,7 @@ export const karbon = (() => ({
 			const appConfigObj = appConfig[i];
 			const appId = i;
 			const lastFirstRender = i === appConfig.length - 1;
-			appConfigObj.container.innerHTML = '';
+			
 			this.appContainer[appId] = appConfigObj.container;
 			this.appFx[appId] = appConfigObj.effects;
 			this.appSubs[appId] = appConfigObj.subscriptions;
@@ -47,18 +55,33 @@ export const karbon = (() => ({
 			}
 			/* END.DEV_ONLY */
 
-			renderApp(
-				this.appContainer[appId],
-				this.appView[appId],
-				this.runTime[appId],
-				this.appGlobalActions[appId],
-				this.appOnInit[appId],
-				undefined,
-				undefined,
-				true,
-				lastFirstRender,
-				appId
-			);
+			if (renderToString) {
+
+				return renderString(
+					this.appView[appId],
+					this.runTime[appId],
+					this.appGlobalActions[appId],
+					this.appOnInit[appId],
+					appId
+				);
+
+			} else {
+
+				appConfigObj.container.innerHTML = '';
+
+				renderApp(
+					this.appContainer[appId],
+					this.appView[appId],
+					this.runTime[appId],
+					this.appGlobalActions[appId],
+					this.appOnInit[appId],
+					undefined,
+					undefined,
+					true,
+					lastFirstRender,
+					appId
+				);
+			}
 		}
 	},
 

@@ -1,10 +1,25 @@
 import { virtualDom } from '../vdom/vDomState';
 import { nodeBuilder } from '../vdom/nodeBuilder';
 import { createView } from '../dom/createView';
+import { createString } from '../server/createString';
 import { isDefined, isFunction } from '../utils/utils';
 
 let vdomNodeBuilder;
 let vDomNodesArrayPrevious = [];
+
+export const renderString = (
+	appView, 
+	runTime, 
+	appGlobalActions, 
+	appOnInit, 
+	appId
+) => {
+
+	const nodeBuilderInstance = nodeBuilder(runTime, appGlobalActions, appId);
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, {props: runTime.getState()});
+	return createString(nodeBuilderInstance.getVDomNodesArray());
+
+};
 
 export const renderApp = (
 	appContainer,

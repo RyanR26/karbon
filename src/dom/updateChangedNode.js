@@ -44,7 +44,7 @@ export const updateChangedNode = (prop, value, node) => {
 			node.textContent = value;
 		}
 		break;
-	case 'dataAttrs':
+	case 'data':
 		// remove all data attrs
 		for (let i = 0; i < node.attributes.length; i++) {
 			if (/^data-/i.test(node.attributes[i].name)) {

@@ -24,6 +24,7 @@ export const createRunTime = (app, appId) => {
 		
 		let callbackData = null;
 		let sequenceCompleted = null;
+		let sequenceCache = null;
 		let stampId;
 		let cache;
 
@@ -37,9 +38,10 @@ export const createRunTime = (app, appId) => {
 
 		const messages = (...msgs) => {
 			callbackData = null;
+			sequenceCache = Object.assign({}, cache);
 			sequenceCounter ++;
 			const sequenceId = (stampId || randomStringId()) + '_' + sequenceCounter ;
-			const sequenceCache = Object.assign({}, cache);
+			// const sequenceCache = Object.assign({}, cache);
 			cache = undefined;
 			stampId = undefined;
       
@@ -61,13 +63,14 @@ export const createRunTime = (app, appId) => {
 				callbacks[sequenceId] = callback;
 			} else {
 				delete updatesQueue[sequenceId];
-				callback(callbackData, sequenceCompleted);
+				callback(callbackData, sequenceCompleted, sequenceCache);
 			}
 		};
 		
-		const setCallbackData = (data, didComplete) => {
+		const setCallbackData = (data, didComplete, cache) => {
 			callbackData = data;
 			sequenceCompleted = didComplete;
+			sequenceCache = cache;
 		};
 
 		return {
@@ -85,7 +88,7 @@ export const createRunTime = (app, appId) => {
 		processMsg(sequenceId, msgs[0], _, sequenceCache);
 	};
 
-	const exeQueuedMsgs = (data, sequenceId, sequenceCompleted = true, sequenceCache) => {
+	const exeQueuedMsgs = (data, sequenceId, sequenceCompleted=true, sequenceCache) => {
 
 		if (isDefined(sequenceId)) {
 
@@ -97,10 +100,9 @@ export const createRunTime = (app, appId) => {
 				if (isFunction(callbacks[sequenceId])) {
 					const callbacksClone = Object.assign({}, callbacks);
 					delete callbacks[sequenceId];
-					callbacksClone[sequenceId](data, sequenceCompleted);
-					
+					callbacksClone[sequenceId](data, sequenceCompleted, sequenceCache);
 				} else {
-					updateMethods.setCallbackData(data, sequenceCompleted);
+					updateMethods.setCallbackData(data, sequenceCompleted, sequenceCache);
 				}
 			}
 		} 
@@ -127,7 +129,7 @@ export const createRunTime = (app, appId) => {
 			const renderFlags = msgArray[2] || {};
 
 			/* START.DEV_ONLY */
-			if (isDefined(appTap.message))	appTap.message({msg: msgArray, sequenceId});
+			if (isDefined(appTap.message))	appTap.message({msg: msgArray, sequenceId, input: data});
 			/* END.DEV_ONLY */
 			
 			// msgArray[0] === msgType
