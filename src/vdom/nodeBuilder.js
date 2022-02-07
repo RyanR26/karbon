@@ -8,6 +8,7 @@ import { createVNode } from './createVNode';
 
 const actionsCache = {};
 const lazyCache = {};
+let lazyCount;
 
 export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 
@@ -26,6 +27,7 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 	let renderingSvg = false;
 	actionsCache[appId] = {};
 	lazyCache[appId] = {};
+  lazyCount = 0;
 
 	const getVDomNodesArray = () => vDomNodesArray;
 	
@@ -42,6 +44,10 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 	const resetVDomNodesArray = () => {
 		vDomNodesArray.length = 0;
 	};
+
+	const getLazyCache = () => lazyCache;
+
+  const getLazyCount = () => lazyCount;
 
 	const nodeClose = tagName => {
 		rootIndex--;
@@ -188,6 +194,7 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 
 
 	const lazy = (importModule, lazyComponent, loading, error, time) => {
+    // console.log('lazy call')
 
 		const cacheKey = importModule.toString().replace(/ /g, '');
 
@@ -196,24 +203,27 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 		}
 		else if (isDefined(lazyCache[appId][cacheKey])) {
 			const lazy = lazyCache[appId][cacheKey][0];
+      lazyCount --;
 			if (isFunction(lazy)) lazy(lazyCache[appId][cacheKey][1]);
 		} 
 		else {
 			if (isFunction(loading)) loading();
 			const thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
+			lazyCount ++;
+      
 			thenable
 				.then(module => {
 					setTimeout(() => {
 						lazyCache[appId][cacheKey] = [lazyComponent, module];
 						runTime.forceReRender();
-						window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+						// window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
 					}, time || 0);
 				})
 				.catch(error => {
 					console.error(error); // eslint-disable-line
 					lazyCache[appId][cacheKey] = 'error';
 					// runTime.forceReRender();
-					window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+					// window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
 				});
 		}
 	};
@@ -230,6 +240,8 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 		getKeyedNodesPrev,
 		setKeyedNodesPrev,
 		getVDomNodesArray,
-		resetVDomNodesArray 
+		resetVDomNodesArray,
+		getLazyCache,
+    getLazyCount
 	};
 };

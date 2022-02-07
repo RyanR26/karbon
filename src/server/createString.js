@@ -1,4 +1,6 @@
-export const createString = (vDomNodes) => {
+import { voidedElements } from '../vdom/voidedElements';
+
+export const createString = vDomNodes => {
 
 	let htmlString = ''; 
 	let node;
@@ -9,9 +11,7 @@ export const createString = (vDomNodes) => {
 		node = vDomNodes[i];
 		nextNode = vDomNodes[i+1];
     
-		closingTagStack.push(node.type);
-    
-		// open
+		// open tag
 		htmlString += '<' + node.type;
 
 		// add props
@@ -45,30 +45,37 @@ export const createString = (vDomNodes) => {
 			}
 		});
 		
-		// close
-		htmlString += '>';
-
-		// add text
-		if (node.props.text) {
-			htmlString += node.props.text;
+		// close tag
+		if (voidedElements[node.type]) {
+			htmlString += '/>';
 		}
-			
-		if (nextNode) {
-			if (nextNode.level === node.level) {
-				htmlString += '</' + closingTagStack.pop() + '>';
+		else {
+			closingTagStack.push(node.type);
+			htmlString += '>';
+      
+			// add text
+			if (node.props.text) {
+				htmlString += node.props.text;
 			}
-			else if (nextNode.level < node.level) {
-				const retrace = node.level - nextNode.level;
-				for (let x = 0; x <= retrace; x++) {
+
+			if (nextNode) {
+				if (nextNode.level === node.level) {
+					htmlString += '</' + closingTagStack.pop() + '>';
+				}
+				else if (nextNode.level < node.level) {
+					const retrace = node.level - nextNode.level;
+					for (let x = 0; x <= retrace; x++) {
+						htmlString += '</' + closingTagStack.pop() + '>';
+					}
+				}
+			} else {
+				const remaining = closingTagStack.length;
+				for (let x = 0; x < remaining; x++) {
 					htmlString += '</' + closingTagStack.pop() + '>';
 				}
 			}
-		} else {
-			const remaining = closingTagStack.length;
-			for (let x = 0; x < remaining; x++) {
-				htmlString += '</' + closingTagStack.pop() + '>';
-			}
 		}
+
 	}
 
 	return htmlString;

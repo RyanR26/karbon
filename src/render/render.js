@@ -12,13 +12,24 @@ export const renderString = (
 	runTime, 
 	appGlobalActions, 
 	appOnInit, 
-	appId
+	appId,
+	asyncResolve
 ) => {
 
-	const nodeBuilderInstance = nodeBuilder(runTime, appGlobalActions, appId);
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, {props: runTime.getState()});
-	return createString(nodeBuilderInstance.getVDomNodesArray());
+	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
+	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions, appId);
+	const nodeBuilderInstance = vdomNodeBuilder[appId];
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() });
 
+	if (nodeBuilderInstance.getLazyCount() === 0) {
+		if(asyncResolve) {
+			asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
+		} else {
+			return createString(nodeBuilderInstance.getVDomNodesArray());
+		}
+	} else {
+		nodeBuilderInstance.resetVDomNodesArray();
+	}
 };
 
 export const renderApp = (

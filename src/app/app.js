@@ -14,6 +14,25 @@ export const karbon = (() => ({
 		return this.init(appConfig, true);
 	},
 
+	toStringAsync(...appConfig) {
+
+		this.toStringAsyncResolve;
+		this.toStringAsyncPromise;
+
+		return new Promise(resolveOuter => {
+
+			this.toStringAsyncPromise = new Promise(resolveInner => {
+				this.toStringAsyncResolve = resolveInner;
+				this.init(appConfig, true);
+			});
+  
+			this.toStringAsyncPromise.then(htmlString => {
+				resolveOuter(htmlString);
+			});
+
+		});
+	},
+
 	init(appConfig, renderToString) {
 
 		this.runTime = {};
@@ -26,6 +45,8 @@ export const karbon = (() => ({
 		this.appSubs = {};
 		this.appFx = {};
 		this.appOnInit = {};
+		this.renderToString = renderToString;
+
 		/* START.DEV_ONLY */
 		this.appTap = {};
 		/* END.DEV_ONLY */
@@ -218,19 +239,31 @@ export const karbon = (() => ({
 
 	reRender(changedStateKeys, sequenceId, appId, sequenceCache) {
 
-		renderApp(
-			this.appContainer[appId],
-			this.appView[appId],
-			this.runTime[appId],
-			this.appGlobalActions[appId],
-			undefined,
-			changedStateKeys,
-			sequenceId,
-			false,
-			undefined,
-			appId,
-			sequenceCache
-		);
+		if (this.renderToString) {
+			this.toStringAsyncOut = renderString(
+				this.appView[appId],
+				this.runTime[appId],
+				this.appGlobalActions[appId],
+				this.appOnInit[appId],
+				appId,
+				this.toStringAsyncResolve
+			);
+		} else {
+			renderApp(
+				this.appContainer[appId],
+				this.appView[appId],
+				this.runTime[appId],
+				this.appGlobalActions[appId],
+				undefined,
+				changedStateKeys,
+				sequenceId,
+				false,
+				undefined,
+				appId,
+				sequenceCache
+			);
+		}
+
 	}
   
 }))();
