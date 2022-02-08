@@ -6,34 +6,33 @@ import { renderApp, renderString } from '../render/render';
 
 export const karbon = (() => ({
 
-	run(...appConfig) {
-		this.init(appConfig, false);
+	render(...appConfig) {
+		this.init(appConfig, false, 'dom');
 	},
 
 	toString(...appConfig) {
-		return this.init(appConfig, true);
+		return this.init(appConfig, true, 'string');
 	},
 
 	toStringAsync(...appConfig) {
 
-		this.toStringAsyncResolve;
-		this.toStringAsyncPromise;
-
 		return new Promise(resolveOuter => {
+
+			this.toStringAsyncResolve;
+			this.toStringAsyncPromise;
 
 			this.toStringAsyncPromise = new Promise(resolveInner => {
 				this.toStringAsyncResolve = resolveInner;
-				this.init(appConfig, true);
+				this.init(appConfig, true, 'stringAsync');
 			});
   
 			this.toStringAsyncPromise.then(htmlString => {
 				resolveOuter(htmlString);
 			});
-
 		});
 	},
 
-	init(appConfig, renderToString) {
+	init(appConfig, renderToString, renderProcess) {
 
 		this.runTime = {};
 		this.appRootComponent = {};
@@ -46,6 +45,7 @@ export const karbon = (() => ({
 		this.appFx = {};
 		this.appOnInit = {};
 		this.renderToString = renderToString;
+		this.renderProcess = renderProcess;
 
 		/* START.DEV_ONLY */
 		this.appTap = {};
@@ -75,15 +75,15 @@ export const karbon = (() => ({
 				this.appTap[appId].state({prevState: null, newState: appConfigObj.state, sequenceId: null});
 			}
 			/* END.DEV_ONLY */
-
+      
 			if (renderToString) {
 
 				return renderString(
 					this.appView[appId],
 					this.runTime[appId],
 					this.appGlobalActions[appId],
-					this.appOnInit[appId],
-					appId
+					appId,
+					this.toStringAsyncResolve
 				);
 
 			} else {
@@ -239,16 +239,7 @@ export const karbon = (() => ({
 
 	reRender(changedStateKeys, sequenceId, appId, sequenceCache) {
 
-		if (this.renderToString) {
-			this.toStringAsyncOut = renderString(
-				this.appView[appId],
-				this.runTime[appId],
-				this.appGlobalActions[appId],
-				this.appOnInit[appId],
-				appId,
-				this.toStringAsyncResolve
-			);
-		} else {
+		if (this.renderProcess === 'dom') {
 			renderApp(
 				this.appContainer[appId],
 				this.appView[appId],
@@ -263,7 +254,15 @@ export const karbon = (() => ({
 				sequenceCache
 			);
 		}
-
+		else if (this.renderToString && this.renderProcess === 'stringAsync') {
+			renderString(
+				this.appView[appId],
+				this.runTime[appId],
+				this.appGlobalActions[appId],
+				appId,
+				this.toStringAsyncResolve
+			);
+		} 
 	}
   
 }))();

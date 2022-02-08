@@ -49,7 +49,7 @@ export const createRunTime = (app, appId) => {
 			if (isDefined(appTap.dispatch)) appTap.dispatch({msgs, sequenceId});
 			/* END.DEV_ONLY */
 			
-			window.setTimeout(() => {
+			setTimeout(() => {
 				createSequenceArray(sequenceId, msgs, sequenceCache);
 			}, 0);
 
@@ -381,7 +381,7 @@ export const createRunTime = (app, appId) => {
 		/* END.DEV_ONLY */
 
 		if (isArray(payload)) {
-			for(let i = 0; i < payload.length; i++) {
+			for (let i = 0; i < payload.length; i++) {
 				const payloadObj = payload[i];
 				updateState(appState, payloadObj.path, payloadObj.value, payloadObj.action, payloadObj.add, payloadObj.remove);
 				changedStateKeys[i] = payloadObj.path[0];

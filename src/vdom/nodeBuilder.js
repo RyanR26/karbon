@@ -27,7 +27,7 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 	let renderingSvg = false;
 	actionsCache[appId] = {};
 	lazyCache[appId] = {};
-  lazyCount = 0;
+	lazyCount = 0;
 
 	const getVDomNodesArray = () => vDomNodesArray;
 	
@@ -47,7 +47,7 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 
 	const getLazyCache = () => lazyCache;
 
-  const getLazyCount = () => lazyCount;
+	const getLazyCount = () => lazyCount;
 
 	const nodeClose = tagName => {
 		rootIndex--;
@@ -194,7 +194,6 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 
 
 	const lazy = (importModule, lazyComponent, loading, error, time) => {
-    // console.log('lazy call')
 
 		const cacheKey = importModule.toString().replace(/ /g, '');
 
@@ -203,7 +202,7 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 		}
 		else if (isDefined(lazyCache[appId][cacheKey])) {
 			const lazy = lazyCache[appId][cacheKey][0];
-      lazyCount --;
+			lazyCount --;
 			if (isFunction(lazy)) lazy(lazyCache[appId][cacheKey][1]);
 		} 
 		else {
@@ -242,6 +241,6 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 		getVDomNodesArray,
 		resetVDomNodesArray,
 		getLazyCache,
-    getLazyCount
+		getLazyCount
 	};
 };

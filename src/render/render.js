@@ -11,7 +11,6 @@ export const renderString = (
 	appView, 
 	runTime, 
 	appGlobalActions, 
-	appOnInit, 
 	appId,
 	asyncResolve
 ) => {
@@ -21,13 +20,13 @@ export const renderString = (
 	const nodeBuilderInstance = vdomNodeBuilder[appId];
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() });
 
-	if (nodeBuilderInstance.getLazyCount() === 0) {
-		if(asyncResolve) {
-			asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
-		} else {
-			return createString(nodeBuilderInstance.getVDomNodesArray());
-		}
-	} else {
+	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
+		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
+	} 
+	else if (!asyncResolve) {
+		return createString(nodeBuilderInstance.getVDomNodesArray());
+	} 
+	else {
 		nodeBuilderInstance.resetVDomNodesArray();
 	}
 };
@@ -60,7 +59,7 @@ export const renderApp = (
 	}
 
 	nodeBuilderInstance.setKeyedNodesPrev();
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, {props: runTime.getState()});
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() });
 
 	createView(
 		appContainer,

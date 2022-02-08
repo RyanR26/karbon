@@ -305,7 +305,7 @@ var createRunTime = function createRunTime(app, appId) {
 			if (isDefined(appTap.dispatch)) appTap.dispatch({ msgs: msgs, sequenceId: sequenceId });
 			/* END.DEV_ONLY */
 
-			window.setTimeout(function () {
+			setTimeout(function () {
 				createSequenceArray(sequenceId, msgs, sequenceCache);
 			}, 0);
 
@@ -933,7 +933,6 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions, appId) {
 	};
 
 	var lazy = function lazy(importModule, lazyComponent, loading, error, time) {
-		// console.log('lazy call')
 
 		var cacheKey = importModule.toString().replace(/ /g, '');
 
@@ -2049,9 +2048,13 @@ var createString = function createString(vDomNodes) {
 			closingTagStack.push(node.type);
 			htmlString += '>';
 
-			// add text
+			// add text and inner html
 			if (node.props.text) {
 				htmlString += node.props.text;
+			}
+
+			if (node.props.innerHTML) {
+				htmlString += node.props.innerHTML;
 			}
 
 			if (nextNode) {
@@ -2078,19 +2081,17 @@ var createString = function createString(vDomNodes) {
 var vdomNodeBuilder = void 0;
 var vDomNodesArrayPrevious = [];
 
-var renderString = function renderString(appView, runTime, appGlobalActions, appOnInit, appId, asyncResolve) {
+var renderString = function renderString(appView, runTime, appGlobalActions, appId, asyncResolve) {
 
 	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
 	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions, appId);
 	var nodeBuilderInstance = vdomNodeBuilder[appId];
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() });
 
-	if (nodeBuilderInstance.getLazyCount() === 0) {
-		if (asyncResolve) {
-			asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
-		} else {
-			return createString(nodeBuilderInstance.getVDomNodesArray());
-		}
+	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
+		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
+	} else if (!asyncResolve) {
+		return createString(nodeBuilderInstance.getVDomNodesArray());
 	} else {
 		nodeBuilderInstance.resetVDomNodesArray();
 	}
@@ -2130,19 +2131,19 @@ var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActi
 
 var karbon = function () {
 	return {
-		run: function run() {
+		render: function render() {
 			for (var _len = arguments.length, appConfig = Array(_len), _key = 0; _key < _len; _key++) {
 				appConfig[_key] = arguments[_key];
 			}
 
-			this.init(appConfig, false);
+			this.init(appConfig, false, 'dom');
 		},
 		toString: function toString() {
 			for (var _len2 = arguments.length, appConfig = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
 				appConfig[_key2] = arguments[_key2];
 			}
 
-			return this.init(appConfig, true);
+			return this.init(appConfig, true, 'string');
 		},
 		toStringAsync: function toStringAsync() {
 			var _this = this;
@@ -2151,14 +2152,14 @@ var karbon = function () {
 				appConfig[_key3] = arguments[_key3];
 			}
 
-			this.toStringAsyncResolve;
-			this.toStringAsyncPromise;
-
 			return new Promise(function (resolveOuter) {
+
+				_this.toStringAsyncResolve;
+				_this.toStringAsyncPromise;
 
 				_this.toStringAsyncPromise = new Promise(function (resolveInner) {
 					_this.toStringAsyncResolve = resolveInner;
-					_this.init(appConfig, true);
+					_this.init(appConfig, true, 'stringAsync');
 				});
 
 				_this.toStringAsyncPromise.then(function (htmlString) {
@@ -2166,7 +2167,7 @@ var karbon = function () {
 				});
 			});
 		},
-		init: function init(appConfig, renderToString) {
+		init: function init(appConfig, renderToString, renderProcess) {
 
 			this.runTime = {};
 			this.appRootComponent = {};
@@ -2179,6 +2180,7 @@ var karbon = function () {
 			this.appFx = {};
 			this.appOnInit = {};
 			this.renderToString = renderToString;
+			this.renderProcess = renderProcess;
 
 			/* START.DEV_ONLY */
 			this.appTap = {};
@@ -2211,7 +2213,7 @@ var karbon = function () {
 
 				if (renderToString) {
 
-					return renderString(this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], appId);
+					return renderString(this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], appId, this.toStringAsyncResolve);
 				} else {
 
 					appConfigObj.container.innerHTML = '';
@@ -2341,32 +2343,32 @@ var karbon = function () {
 		},
 		reRender: function reRender(changedStateKeys, sequenceId, appId, sequenceCache) {
 
-			if (this.renderToString) {
-				this.toStringAsyncOut = renderString(this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], appId, this.toStringAsyncResolve);
-			} else {
+			if (this.renderProcess === 'dom') {
 				renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], undefined, changedStateKeys, sequenceId, false, undefined, appId, sequenceCache);
+			} else if (this.renderToString && this.renderProcess === 'stringAsync') {
+				renderString(this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], appId, this.toStringAsyncResolve);
 			}
 		}
 	};
 }();
 
-var run = void 0;
+var render = void 0;
 var toString = void 0;
 var toStringAsync = void 0;
 
 if ((typeof window === 'undefined' ? 'undefined' : _typeof(window)) === 'object') {
 	if (document.currentScript && 'noModule' in document.currentScript) {
-		run = karbon.run.bind(karbon);
+		render = karbon.render.bind(karbon);
 		toString = karbon.toString.bind(karbon);
 		toStringAsync = karbon.toStringAsync.bind(karbon);
 	} else {
 		window.karbon = {};
-		window.karbon.run = karbon.run.bind(karbon);
+		window.karbon.render = karbon.render.bind(karbon);
 	}
 } else {
-	run = karbon.run.bind(karbon);
+	render = karbon.render.bind(karbon);
 	toString = karbon.toString.bind(karbon);
 	toStringAsync = karbon.toStringAsync.bind(karbon);
 }
 
-export { run, toString, toStringAsync };
+export { render, toString, toStringAsync };

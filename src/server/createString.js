@@ -53,9 +53,13 @@ export const createString = vDomNodes => {
 			closingTagStack.push(node.type);
 			htmlString += '>';
       
-			// add text
+			// add text and inner html
 			if (node.props.text) {
 				htmlString += node.props.text;
+			}
+      
+			if (node.props.innerHTML) {
+				htmlString += node.props.innerHTML;
 			}
 
 			if (nextNode) {
