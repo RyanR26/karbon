@@ -109,11 +109,9 @@ export const shouldRenderNode = (
 		}
 
 		//// update node props //
-		// create array of keys, values to be updates //
+		// create array of keys, values to be updated //
 		// ////////////////////////////////////////////
 
-		// created arrays once and reuse. reduce GC
-		// reset cached created array
 		const newPropsKeys = Object.keys(newProps);
 		const prevPropsKeys = Object.keys(prevProps);
 
@@ -158,7 +156,7 @@ export const shouldRenderNode = (
 				// strip out any text nodes that are set before
 				if (oldProp !== 'innerHTML') {
 					props[props.length] = oldProp;
-					values[values.length] = oldProp === 'class' || oldProp === 'dataAttrs' ? [] : '';
+					values[values.length] = oldProp === 'data' ? [] : '';
 				} else {
 					props.unshift(oldProp);
 					values.unshift('');

@@ -241,17 +241,21 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 						// 3: Replace old keyed node with unkeyed node
 						//////////////////////////////////////////////
 						else if (!isOldNodePresentInNewKeyedPool) {
-							prevNode.key = false;
+							// prevNode.key = false;
 							// no need to remove children of keyed node from tree as the nodeRemovedFlag 
 							// in 'CreateView' is being used to skip over these
+							domNodes.splice(i, 0, emptyVNodeStatic);
+							node = domNodes[i];
 						}
 					} else {
 						// 4: Remove old keyed node 
 						///////////////////////////
 						if (!isOldNodePresentInNewKeyedPool) {
-							prevNode.key = false;
+							// prevNode.key = false;
 							// no need to remove children of keyed node from tree as the nodeRemovedFlag 
 							// in 'CreateView' is being used to skip over these
+							domNodes.splice(i, 0, emptyVNodeStatic);
+							node = domNodes[i];
 						}
 						// 5: Mark old keyed node as Recyclable
 						////////////////////////////

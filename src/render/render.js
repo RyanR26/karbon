@@ -16,11 +16,11 @@ export const renderString = (
 ) => {
 
 	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions, appId);
+	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
 	const nodeBuilderInstance = vdomNodeBuilder[appId];
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() });
 
-	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
+	if (asyncResolve && nodeBuilderInstance.getLazyCount(appId) === 0) {
 		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
 	} 
 	else if (!asyncResolve) {
@@ -29,6 +29,45 @@ export const renderString = (
 	else {
 		nodeBuilderInstance.resetVDomNodesArray();
 	}
+};
+
+export const hydrateApp = (
+	appContainer,
+	appView, 
+	runTime, 
+	appGlobalActions, 
+	appOnInit, 
+	changedStateKeys, 
+	sequenceId, 
+	firstRender,
+	appId,
+	sequenceCache
+) => { 
+
+	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
+	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
+	const nodeBuilderInstance = vdomNodeBuilder[appId];
+	nodeBuilderInstance.createHydrationLayer({ $$_appRootView : appView }, { props: runTime.getState() });
+	if (nodeBuilderInstance.getLazyCount(appId) !== 0) {
+		nodeBuilderInstance.resetVDomNodesArray();
+	} else {
+		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
+    
+		renderApp(
+			appContainer,
+			appView, 
+			runTime, 
+			appGlobalActions, 
+			appOnInit, 
+			changedStateKeys, 
+			sequenceId, 
+			firstRender,
+			appId,
+			sequenceCache,
+			true
+		);
+	}
+
 };
 
 export const renderApp = (
@@ -40,22 +79,24 @@ export const renderApp = (
 	changedStateKeys, 
 	sequenceId, 
 	firstRender,
-	lastFirstRender,
 	appId,
-	sequenceCache
+	sequenceCache,
+	isHydrating
 ) => {
 
 	let nodeBuilderInstance;
 
-	if (!firstRender) {
+	if (!firstRender || isHydrating) {
 		nodeBuilderInstance = vdomNodeBuilder[appId];
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 		nodeBuilderInstance.resetVDomNodesArray();
 	} 
 	else {
 		vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions, appId);
+		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions);
 		nodeBuilderInstance = vdomNodeBuilder[appId];
+		virtualDom.setInitialized(false);
+		virtualDom.setSync(false);
 	}
 
 	nodeBuilderInstance.setKeyedNodesPrev();
@@ -67,16 +108,16 @@ export const renderApp = (
 		vDomNodesArrayPrevious,
 		changedStateKeys,
 		nodeBuilderInstance.getKeyedNodes(),
-		nodeBuilderInstance.getKeyedNodesPrev()
+		nodeBuilderInstance.getKeyedNodesPrev(),
+		isHydrating
 	);
   
-	if (!firstRender) {
+	if (!firstRender && !isHydrating) {
 		runTime.exeQueuedMsgs(undefined, sequenceId, undefined, sequenceCache);
 	} else {
 		if (isFunction(appOnInit)) appOnInit(appGlobalActions);
-		if (lastFirstRender) {
-			virtualDom.setInitialized(true);
-			virtualDom.setSync(true);
-		}
+		virtualDom.setInitialized(true);
+		virtualDom.setSync(true);
 	}  
+
 };

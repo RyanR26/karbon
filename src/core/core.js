@@ -1,109 +1,138 @@
 /* eslint-disable no-console */
 import { subscription } from './subscription';
-import { isDefined, isUndefined, isNullorUndef, isFunction, isString, isArray } from '../utils/utils';
+import { isDefined, isUndefined, isNullorUndef, isNull, isFunction, isString, isArray, isBrowser } from '../utils/utils';
 import { createRunTime } from '../runTime/runTime';
-import { renderApp, renderString } from '../render/render';
+import { renderApp, hydrateApp, renderString } from '../render/render';
 
 export const karbon = (() => ({
 
-	render(...appConfig) {
-		this.init(appConfig, false, 'dom');
+	runTime: {},
+	appRootComponent: {},
+	appRootActions: {},
+	appContainer: {},
+	appView: {},
+	appGlobalActions: {},
+	appRootSubscribe: {},
+	appSubs: {},
+	appFx: {},
+	appOnInit: {},
+	renderToString: {},
+	toStringAsyncResolve: {},
+	process: {},
+	appCounter: 0,
+	/* START.DEV_ONLY */
+	appTap: {},
+	/* END.DEV_ONLY */
+
+	render(appConfig) {
+		this.init(appConfig, false, 'render');
 	},
 
-	toString(...appConfig) {
+	hydrate(appConfig) {
+		this.init(appConfig, false, 'hydrate');
+	},
+
+	toString(appConfig) {
 		return this.init(appConfig, true, 'string');
 	},
 
-	toStringAsync(...appConfig) {
-
+	toStringAsync(appConfig) {
 		return new Promise(resolveOuter => {
-
-			this.toStringAsyncResolve;
-			this.toStringAsyncPromise;
-
 			this.toStringAsyncPromise = new Promise(resolveInner => {
-				this.toStringAsyncResolve = resolveInner;
-				this.init(appConfig, true, 'stringAsync');
+				// this.toStringAsyncResolve = resolveInner;
+				this.init(appConfig, true, 'toStringAsync', resolveInner);
 			});
-  
 			this.toStringAsyncPromise.then(htmlString => {
 				resolveOuter(htmlString);
 			});
 		});
 	},
 
-	init(appConfig, renderToString, renderProcess) {
+	init(appConfigObj, renderToString, process, asyncStringResolve) {
 
-		this.runTime = {};
-		this.appRootComponent = {};
-		this.appRootActions = {};
-		this.appContainer = {};
-		this.appView = {};
-		this.appGlobalActions = {};
-		this.appRootSubscribe = {};
-		this.appSubs = {};
-		this.appFx = {};
-		this.appOnInit = {};
-		this.renderToString = renderToString;
-		this.renderProcess = renderProcess;
+		this.appCounter ++;
+		
+		const appId = this.appCounter;
+		
+		this.renderToString[appId] = renderToString;
+		this.toStringAsyncResolve[appId] = asyncStringResolve;
+		this.process[appId] = process;
+		this.appContainer[appId] = isBrowser() ? appConfigObj.container(document) : null;
 
 		/* START.DEV_ONLY */
-		this.appTap = {};
+		if (isBrowser() && isNull(this.appContainer[appId])) {
+			console.error('App container node does not exist');
+			return false;
+		}
 		/* END.DEV_ONLY */
 
-		for (let i=0; i<appConfig.length; i++) {
+		this.appFx[appId] = appConfigObj.effects;
+		this.appSubs[appId] = appConfigObj.subscriptions;
+		/* START.DEV_ONLY */
+		this.appTap[appId] = appConfigObj.tap || {};
+		/* END.DEV_ONLY */
+		this.runTime[appId] = createRunTime(this, appId);
+		this.runTime[appId].setState(appConfigObj.state);
+		this.appView[appId] = appConfigObj.view;
+		this.appGlobalActions[appId] = this.initGlobalActions(appConfigObj.actions, this.runTime[appId]);
+		this.appOnInit[appId] = appConfigObj.init;
 
-			const appConfigObj = appConfig[i];
-			const appId = i;
-			const lastFirstRender = i === appConfig.length - 1;
-			
-			this.appContainer[appId] = appConfigObj.container;
-			this.appFx[appId] = appConfigObj.effects;
-			this.appSubs[appId] = appConfigObj.subscriptions;
-			/* START.DEV_ONLY */
-			this.appTap[appId] = appConfigObj.tap || {};
-			/* END.DEV_ONLY */
-			this.runTime[appId] = createRunTime(this, appId);
-			this.runTime[appId].setState(appConfigObj.state);
-			this.appView[appId] = appConfigObj.view;
-			this.appGlobalActions[appId] = this.initGlobalActions(appConfigObj.actions, this.runTime[appId]);
-			this.appOnInit[appId] = appConfigObj.init;
+		if (isBrowser()) {
 			this.runHandleSubs(appId);
-
-			/* START.DEV_ONLY */
-			if (isDefined(this.appTap[appId].state)) {
-				this.appTap[appId].state({prevState: null, newState: appConfigObj.state, sequenceId: null});
-			}
-			/* END.DEV_ONLY */
-      
-			if (renderToString) {
-
-				return renderString(
-					this.appView[appId],
-					this.runTime[appId],
-					this.appGlobalActions[appId],
-					appId,
-					this.toStringAsyncResolve
-				);
-
-			} else {
-
-				appConfigObj.container.innerHTML = '';
-
-				renderApp(
-					this.appContainer[appId],
-					this.appView[appId],
-					this.runTime[appId],
-					this.appGlobalActions[appId],
-					this.appOnInit[appId],
-					undefined,
-					undefined,
-					true,
-					lastFirstRender,
-					appId
-				);
-			}
 		}
+
+		/* START.DEV_ONLY */
+		if (isDefined(this.appTap[appId].state)) {
+			this.appTap[appId].state({prevState: null, newState: appConfigObj.state, sequenceId: null});
+		}
+		/* END.DEV_ONLY */
+			
+		if (renderToString) {
+
+			return renderString(
+				this.appView[appId],
+				this.runTime[appId],
+				this.appGlobalActions[appId],
+				appId,
+				this.toStringAsyncResolve[appId]
+			);
+		} 
+
+		else if (this.process[appId] === 'hydrate') {
+
+			// hydration only happens once - update 'process' to ensure dom is rendered on future state changes
+			this.process[appId] = 'render'; 
+
+			hydrateApp(
+				this.appContainer[appId],
+				this.appView[appId],
+				this.runTime[appId],
+				this.appGlobalActions[appId],
+				this.appOnInit[appId],
+				undefined, //	changedStateKeys
+				undefined, //sequenceId
+				true, // firstRender
+				appId
+			);
+		}
+			
+		else {
+
+			this.appContainer[appId].innerHTML = '';
+
+			renderApp(
+				this.appContainer[appId],
+				this.appView[appId],
+				this.runTime[appId],
+				this.appGlobalActions[appId],
+				this.appOnInit[appId],
+				undefined, //	changedStateKeys
+				undefined, //sequenceId
+				true, // firstRender
+				appId
+			);
+		}
+		// }
 	},
 
 	initGlobalActions(actions, runTime) {
@@ -237,33 +266,45 @@ export const karbon = (() => ({
 		}
 	},
 
-	reRender(changedStateKeys, sequenceId, appId, sequenceCache) {
+	reRender(changedStateKeys, sequenceId, appId, sequenceCache, creatingHydrationLayer) {
 
-		if (this.renderProcess === 'dom') {
+		if (creatingHydrationLayer) {
+			hydrateApp(
+				this.appContainer[appId],
+				this.appView[appId],
+				this.runTime[appId],
+				this.appGlobalActions[appId],
+				this.appOnInit[appId],
+				undefined, //	changedStateKeys
+				undefined, // sequenceId
+				true, // firstRender
+				appId
+			);
+		}
+		else if (this.process[appId] === 'render') {
 			renderApp(
 				this.appContainer[appId],
 				this.appView[appId],
 				this.runTime[appId],
 				this.appGlobalActions[appId],
-				undefined,
+				undefined, //onInit
 				changedStateKeys,
 				sequenceId,
-				false,
-				undefined,
+				false,  // firstRender
 				appId,
 				sequenceCache
 			);
 		}
-		else if (this.renderToString && this.renderProcess === 'stringAsync') {
+		else if (this.renderToString[appId] && this.process[appId] === 'toStringAsync') {
 			renderString(
 				this.appView[appId],
 				this.runTime[appId],
 				this.appGlobalActions[appId],
 				appId,
-				this.toStringAsyncResolve
+				this.toStringAsyncResolve[appId]
 			);
-		} 
+		}
 	}
-  
+	
 }))();
 

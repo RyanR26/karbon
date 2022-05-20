@@ -38,6 +38,8 @@ export const getLastItemsFromArr = (arr, noOfItems) => arr[arr.length - noOfItem
 
 export const randomStringId = () => Math.random().toString(36).replace(/[^a-z]+/g, '').substr(2, 10);
 
+export const isBrowser = () => typeof window === 'object';
+
 export const clearObject = obj => {
 	for (let prop in obj) {
 		delete obj[prop];

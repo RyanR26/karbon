@@ -1,22 +1,20 @@
 /* eslint-disable no-mixed-spaces-and-tabs */
-import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise } from '../utils/utils';
+import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise, isBrowser } from '../utils/utils';
 /* START.DEV_ONLY */
 import { checkPropTypes, propTypes } from '../utils/utils';
 /* END.DEV_ONLY */
 import { voidedElements } from './voidedElements';
 import { createVNode } from './createVNode';
 
-const actionsCache = {};
-const lazyCache = {};
-let lazyCount;
-
-export const nodeBuilder = (runTime, appGlobalActions, appId) => {
+export const nodeBuilder = (runTime, appGlobalActions) => {
 
 	const vDomNodesArray = [];
 	const componentActiveArray = [];
 	const componentActiveIndexArray = [];
 	const subscribesToArray = [];
 	const keyedNodes = {};
+	const actionsCache = {};
+	const lazyCache = {};
 	let keyedNodesPrev;
 	let keyName;
 	let isKeyed = false;
@@ -25,9 +23,8 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 	let vNode;
 	let rootIndex = 1;
 	let renderingSvg = false;
-	actionsCache[appId] = {};
-	lazyCache[appId] = {};
-	lazyCount = 0;
+	let creatingHydrationLayer = false;
+	let lazyCount = 0;
 
 	const getVDomNodesArray = () => vDomNodesArray;
 	
@@ -44,8 +41,6 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 	const resetVDomNodesArray = () => {
 		vDomNodesArray.length = 0;
 	};
-
-	const getLazyCache = () => lazyCache;
 
 	const getLazyCount = () => lazyCount;
 
@@ -75,18 +70,26 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 			subscribesToArray[subscribesToArray.length - 1],
 			renderingSvg
 		);
+
+		if (creatingHydrationLayer) {
+			Object.keys(vNode.props).map(key => {
+				if (key[0] === 'o' && key[1] === 'n') {
+					vNode.props[key] = '';
+				}
+			});
+		}
 		
 		vDomNodesArray[vDomNodesArray.length] = vNode;
 
 		// store all keyedNode children on the cached vNode so that when the parent is 
 		// moved the children are moved too and in order to splice back into
 		// the main vdom array for comparison
-    
+		
 		if (isDefined(keyedParent)) {
 			if (rootIndex > keyedParentLevel) {
-			  keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
-		  } else if (rootIndex === keyedParentLevel) {
-			  keyedParent = undefined;
+				keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
+			} else if (rootIndex === keyedParentLevel) {
+				keyedParent = undefined;
 				keyedParentLevel = undefined;
 			}
 		}
@@ -113,7 +116,7 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 			data = comp[1] || {};
 			comp = comp[0];
 		}
-      
+			
 		const viewRef = Object.keys(comp)[0];
 		const view = comp[viewRef];
 		const index = isUndefined(data.index) ? 0 : data.index;
@@ -132,16 +135,16 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 		if (isDefined(dataActions)) {
 			localActions = {};
 			dataActions = isArray(dataActions) ? dataActions : [dataActions];
-      
+			
 			for (let i = 0; i < dataActions.length; i++) {
 				const actionsObj = dataActions[i];
 				const actionsName = Object.keys(actionsObj)[0];
 
-				if (isDefined(actionsCache[appId][actionsName])) {
-					localActions[actionsName] = actionsCache[appId][actionsName];
+				if (isDefined(actionsCache[actionsName])) {
+					localActions[actionsName] = actionsCache[actionsName];
 				} else {
 					localActions[actionsName] = actionsObj[actionsName]({stamp: runTime.stamp, msgs: runTime.messages});
-					actionsCache[appId][actionsName] = localActions[actionsName];
+					actionsCache[actionsName] = localActions[actionsName];
 				}
 			}
 		}
@@ -154,9 +157,9 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 		// about performance.
 
 		subscribesToArray[subscribesToArray.length] = 
-      isUndefined(data.subscribe) || data.subscribe === 'all' ? 
-      	Object.keys(runTime.getState()) : 
-      	data.subscribe;
+			isUndefined(data.subscribe) || data.subscribe === 'all' ? 
+				Object.keys(runTime.getState()) : 
+				data.subscribe;
 
 		const propsFromState = isDefined(data.mergeStateToProps) ? data.mergeStateToProps(runTime.getState()) : undefined;
 
@@ -171,9 +174,9 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 				viewRef
 			);
 		}
-    
+		
 		/* END.DEV_ONLY */
-    
+		
 		// run view render function //
 		// merge local and global actions objects to pass to component
 		view(
@@ -182,65 +185,74 @@ export const nodeBuilder = (runTime, appGlobalActions, appId) => {
 			index
 		)(
 			nodeOpen, 
-			nodeClose, 
+			nodeClose,
 			component,
 			lazy
 		);
-    
+		
 		subscribesToArray.length = subscribesToArray.length - 1;
 		componentActiveArray.length = componentActiveArray.length - 1;
 		componentActiveIndexArray.length = componentActiveIndexArray.length - 1;
 	};
 
-
 	const lazy = (importModule, lazyComponent, loading, error, time) => {
 
 		const cacheKey = importModule.toString().replace(/ /g, '');
 
-		if (lazyCache[appId][cacheKey] === 'error') {
+		if (lazyCache[cacheKey] === 'error') {
 			if (isFunction(error)) error();
 		}
-		else if (isDefined(lazyCache[appId][cacheKey])) {
-			const lazy = lazyCache[appId][cacheKey][0];
+		else if (isDefined(lazyCache[cacheKey])) {
+			const lazy = lazyCache[cacheKey][0];
 			lazyCount --;
-			if (isFunction(lazy)) lazy(lazyCache[appId][cacheKey][1]);
+			if (isFunction(lazy)) lazy(lazyCache[cacheKey][1]);
 		} 
 		else {
 			if (isFunction(loading)) loading();
-			const thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
 			lazyCount ++;
-      
+			const thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
+		
 			thenable
 				.then(module => {
 					setTimeout(() => {
-						lazyCache[appId][cacheKey] = [lazyComponent, module];
-						runTime.forceReRender();
-						// window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+						lazyCache[cacheKey] = [lazyComponent, module];
+						runTime.forceReRender(creatingHydrationLayer);
+						if (isBrowser() && !creatingHydrationLayer) {
+							window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+						}
 					}, time || 0);
 				})
 				.catch(error => {
 					console.error(error); // eslint-disable-line
-					lazyCache[appId][cacheKey] = 'error';
-					// runTime.forceReRender();
-					// window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+					lazyCache[cacheKey] = 'error';
+					runTime.forceReRender(creatingHydrationLayer);
+					if (isBrowser() && !creatingHydrationLayer) {
+						window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+					}
+					
 				});
 		}
 	};
 
 	const renderRootComponent = (comp, data) => {
-		// Render all components top down from root		
+		creatingHydrationLayer = false;
+		component(comp, data);
+	};
+
+	const createHydrationLayer = (comp, data) => {
+		creatingHydrationLayer = true;
 		component(comp, data);
 	};
 
 	return {
 		renderRootComponent,
+		createHydrationLayer,
 		component,
 		getKeyedNodes,
 		getKeyedNodesPrev,
 		setKeyedNodesPrev,
 		getVDomNodesArray,
 		resetVDomNodesArray,
-		getLazyCache,
 		getLazyCount
 	};
 };

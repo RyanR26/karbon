@@ -397,17 +397,16 @@ export const createRunTime = (app, appId) => {
 
 		// run subscriptions function every time state changes. Even with no render
 		app.runHandleSubs(appId);
-
 		if (!preventRender)  {
 			app.reRender(changedStateKeys, sequenceId, appId, sequenceCache);
 		} else {
-			exeQueuedMsgs(undefined, sequenceId, _, sequenceCache);
+			exeQueuedMsgs(_, sequenceId, _, sequenceCache);
 		}
-
 	};
 
-	const forceReRender = () => {
-		app.reRender(undefined, undefined, appId);
+	const forceReRender = (creatingHydrationLayer) => {
+		virtualDom.setSync(true);
+		app.reRender(undefined, undefined, appId, undefined, creatingHydrationLayer);
 	};
 
 	return {

@@ -83,13 +83,13 @@ const patch = () => {
 		nodeReplacedFlag = false;
 		nodeRemovedFlag = false;
 	}
-  
+	
 	if (renderNode.should) {
 
 		if (handleUntrackedHtmlNodesFlag) {
 			// Increase the child node index by 1 as all untracked nodes created by using
-			// innerHTML prop will be wrapped in a sandbox div to prevent breaking the 
-			// vdom -> real dom comparison
+			// innerHTML prop will be wrapped in a containing element to prevent breaking the 
+			// vdom -> real dom relation
 			childNodeIndexes[currentLevel]++;
 		}
 
@@ -195,7 +195,7 @@ const patch = () => {
 	}
 };
 
-export const createView = (appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev) => {
+export const createView = (appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev, isHydrating) => {
 
 	nodeReplacedFlag = false;
 	nodeRemovedFlag = false;
@@ -231,7 +231,7 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 	for (let i = 0, len = domNodes.length; i < len; i++) {
 
 		if (domOpsComplete || virtualDom.getDomUpdatesLimit() === domOpsCount) domOpsComplete = true;
-  
+	
 		if (!domOpsComplete) {
 
 			if (nodesToSkip > 0) {
@@ -267,15 +267,20 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 			}
 
 			// Mount //
-			// Render all nodes on intial page load
-			////////////////////////////////////////2
-			if (!virtualDom.isInitialized()) {
+			// Render all nodes on initial page load
+			////////////////////////////////////////
+			if (!virtualDom.isInitialized() && !isHydrating) {
 
 				$_currentNode = createDomElement(node);
-				$_parentNode.appendChild($_currentNode);
+				$_parentNode.appendChild($_currentNode);  
 				node.dom = $_currentNode;
+			} 
+			else {
 
-			} else {
+				if (isHydrating) {
+					// add dom node ref to prev vnodes dom property
+					prevNode.dom = $_parentNode.children[getDomIndex(currentLevel)];
+				}
 		
 				// Reconcile DOM after state updates //
 				//////////////////////////////////////////
