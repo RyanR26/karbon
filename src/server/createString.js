@@ -15,7 +15,7 @@ export const createString = vDomNodes => {
 		htmlString += '<' + node.type;
 
 		// add props
-		const propKeys = Object.keys(node.props).filter(value => value !== 'text' && (value[0] != 'o' && value[1] != 'n'));
+		const propKeys = Object.keys(node.props).filter(value => value !== 'text');
 
 		propKeys.forEach(key => {
 

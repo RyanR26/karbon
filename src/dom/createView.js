@@ -196,7 +196,7 @@ const patch = () => {
 };
 
 export const createView = (appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev, isHydrating) => {
-
+  // console.log(domNodesPrev, domNodes)
 	nodeReplacedFlag = false;
 	nodeRemovedFlag = false;
 	handleUntrackedHtmlNodesFlag = false;

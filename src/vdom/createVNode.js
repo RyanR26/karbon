@@ -9,7 +9,8 @@ export const createVNode = (
 	staticChildren, 
 	parentComponent, 
 	subscribesTo, 
-	renderingSvg
+	renderingSvg,
+	block
 ) => {
 
 	const props = {}; 
@@ -18,7 +19,7 @@ export const createVNode = (
 	for (let i = 0; i < elProps.length; i++) {
 		const prop = elProps[i];	
 		const value = data[prop];
-		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : `<span data="untracked-nodes">${value}</span>`;
+		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : block ? value : `<span data="untracked-nodes">${value}</span>`;
 	}
 
 	return {

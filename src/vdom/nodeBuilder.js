@@ -1,10 +1,11 @@
 /* eslint-disable no-mixed-spaces-and-tabs */
-import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise, isBrowser } from '../utils/utils';
+import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise, isBrowser, objsAreEqual } from '../utils/utils';
 /* START.DEV_ONLY */
 import { checkPropTypes, propTypes } from '../utils/utils';
 /* END.DEV_ONLY */
 import { voidedElements } from './voidedElements';
 import { createVNode } from './createVNode';
+import { createString } from '../server/createString';
 
 export const nodeBuilder = (runTime, appGlobalActions) => {
 
@@ -15,6 +16,9 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 	const keyedNodes = {};
 	const actionsCache = {};
 	const lazyCache = {};
+	const blockCache = {};
+	const blockVNodes = []; 
+	let creatingBlock = false;
 	let keyedNodesPrev;
 	let keyName;
 	let isKeyed = false;
@@ -49,7 +53,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		if (tagName === 'svg' || tagName === '/svg') renderingSvg = false;
 	};
 
-	const nodeOpen = (tagName, data = {}, flags = {key: false, staticChildren: false}) => {
+	const nodeOpen = (tagName, data = {}, flags = {key: false, staticChildren: false}, block = false) => {
 
 		if (tagName === 'svg') renderingSvg = true;
 
@@ -68,7 +72,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			flags.staticChildren,
 			componentActiveArray[componentActiveArray.length - 1],
 			subscribesToArray[subscribesToArray.length - 1],
-			renderingSvg
+			renderingSvg,
+			block
 		);
 
 		if (creatingHydrationLayer) {
@@ -78,9 +83,17 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 				}
 			});
 		}
-		
-		vDomNodesArray[vDomNodesArray.length] = vNode;
 
+		if (creatingBlock) {
+			blockVNodes[blockVNodes.length] = vNode;
+			if (!voidedElements[tagName]) {
+				rootIndex++;
+			}
+			return;
+		} 
+			
+		vDomNodesArray[vDomNodesArray.length] = vNode;
+	
 		// store all keyedNode children on the cached vNode so that when the parent is 
 		// moved the children are moved too and in order to splice back into
 		// the main vdom array for comparison
@@ -108,6 +121,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		if (!voidedElements[tagName]) {
 			rootIndex++;
 		}
+
+
 	};
 	
 	const component = (comp, data = {}) => {
@@ -187,7 +202,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			nodeOpen, 
 			nodeClose,
 			component,
-			lazy
+			lazy,
+			block
 		);
 		
 		subscribesToArray.length = subscribesToArray.length - 1;
@@ -232,6 +248,44 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 					
 				});
 		}
+	};
+
+	const block = (key, view, props) => {
+
+		creatingBlock = true;    
+		let block;
+		if (!blockCache[key]) {
+			view(props);
+			block = createString(blockVNodes);
+			blockCache[key] = {
+				block,
+				props
+			};
+		} else {
+			const cachedBlock = blockCache[key];
+			block = cachedBlock.block;
+
+			// if (!objsAreEqual(cachedBlock.props, props)) {
+      //   console.log(1)
+			// 	const oldProps = Object.values(cachedBlock.props);
+			// 	const newProps = Object.values(props);
+
+			// 	for (let i=0; i<newProps.length; i++) {
+			// 		const oldProp = oldProps[i];
+			// 		const newProp = newProps[i];
+			// 		if (oldProp !== newProp) {
+			// 			block = block.replace(oldProp, newProp);
+			// 		}
+			// 	}
+
+			// 	cachedBlock.block = block;
+			// 	cachedBlock.props = props;
+			// }
+		}
+		creatingBlock = false; 
+		nodeOpen('span', { id: `__block_${key}__`, innerHTML: block }, { key }, true);
+		nodeClose();
+		blockVNodes.length = 0;
 	};
 
 	const renderRootComponent = (comp, data) => {

@@ -39,7 +39,6 @@ export const karbon = (() => ({
 	toStringAsync(appConfig) {
 		return new Promise(resolveOuter => {
 			this.toStringAsyncPromise = new Promise(resolveInner => {
-				// this.toStringAsyncResolve = resolveInner;
 				this.init(appConfig, true, 'toStringAsync', resolveInner);
 			});
 			this.toStringAsyncPromise.then(htmlString => {
