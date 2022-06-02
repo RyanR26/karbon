@@ -1,5 +1,5 @@
 /* eslint-disable no-mixed-spaces-and-tabs */
-import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise, isBrowser, objsAreEqual } from '../utils/utils';
+import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise, isBrowser, objsAreEqual, isObject } from '../utils/utils';
 /* START.DEV_ONLY */
 import { checkPropTypes, propTypes } from '../utils/utils';
 /* END.DEV_ONLY */
@@ -48,12 +48,14 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 
 	const getLazyCount = () => lazyCount;
 
+  const getBlockCache = () => blockCache;
+
 	const nodeClose = tagName => {
 		rootIndex--;
 		if (tagName === 'svg' || tagName === '/svg') renderingSvg = false;
 	};
 
-	const nodeOpen = (tagName, data = {}, flags = {key: false, staticChildren: false}, block = false) => {
+	const nodeOpen = (tagName, data = {}, flags = {key: false, staticChildren: false}, block = false, blockProps) => {
 
 		if (tagName === 'svg') renderingSvg = true;
 
@@ -73,7 +75,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			componentActiveArray[componentActiveArray.length - 1],
 			subscribesToArray[subscribesToArray.length - 1],
 			renderingSvg,
-			block
+			block,
+			blockProps
 		);
 
 		if (creatingHydrationLayer) {
@@ -253,37 +256,23 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 	const block = (key, view, props) => {
 
 		creatingBlock = true;    
-		let block;
+		let block = '';
+		if (props) {
+			const propKeys = Object.keys(props);
+			for(let i=0; i<propKeys.length; i++) {
+				const propKey = propKeys[i];
+				props[propKey].id = props[propKey].id || `${key}_${propKey}`;
+			}
+		} 
 		if (!blockCache[key]) {
 			view(props);
 			block = createString(blockVNodes);
-			blockCache[key] = {
-				block,
-				props
-			};
+			blockCache[key] = block;
 		} else {
-			const cachedBlock = blockCache[key];
-			block = cachedBlock.block;
-
-			// if (!objsAreEqual(cachedBlock.props, props)) {
-      //   console.log(1)
-			// 	const oldProps = Object.values(cachedBlock.props);
-			// 	const newProps = Object.values(props);
-
-			// 	for (let i=0; i<newProps.length; i++) {
-			// 		const oldProp = oldProps[i];
-			// 		const newProp = newProps[i];
-			// 		if (oldProp !== newProp) {
-			// 			block = block.replace(oldProp, newProp);
-			// 		}
-			// 	}
-
-			// 	cachedBlock.block = block;
-			// 	cachedBlock.props = props;
-			// }
+			block = blockCache[key];
 		}
 		creatingBlock = false; 
-		nodeOpen('span', { id: `__block_${key}__`, innerHTML: block }, { key }, true);
+		nodeOpen('span', { innerHTML: block }, { key }, true, props);
 		nodeClose();
 		blockVNodes.length = 0;
 	};
@@ -307,6 +296,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		setKeyedNodesPrev,
 		getVDomNodesArray,
 		resetVDomNodesArray,
-		getLazyCount
+		getLazyCount,
+    getBlockCache
 	};
 };

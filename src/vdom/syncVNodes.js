@@ -20,7 +20,7 @@ const recyclableVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction:
 
 // Algorithm for syncing prev vNode tree with new vNode tree
 // Each node in the vtree array needs to be compared to a node on the same level in the old tree
-export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) => {
+export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, blockCache) => {
 	
 	let prevNode;
 	let node;
@@ -70,7 +70,7 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 			/////////////////////////////////////////////////////////////
 
 			// 1: Insert old keyed node
-			// {key: false, props: null : {key: 'keyName'} or
+			// {key: false, props: null} : {key: 'keyName'} or
 			// {key: 'keyName2', props: {}} : {key: 'keyName'} 
 			// Current node is keyed and prev node props is null or prev node is keyed but is not in prev pool (has been used already )
 			// Insert old keyed node (move from old location and insert) - the prev dom node does not exist (empty vnode) or has been moved already
@@ -119,7 +119,7 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 					// Try to retrieve current keyed node from prev keyed pool
 					let prevKeyedNode = keyedNodesPrevPool[node.key];
 
-					// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).
+					// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).          
 					if (isDefined(prevKeyedNode)) { 
 
 						const addKeyedChildrenToOldTree = () => {
@@ -244,8 +244,13 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 							// prevNode.key = false;
 							// no need to remove children of keyed node from tree as the nodeRemovedFlag 
 							// in 'CreateView' is being used to skip over these
+             
 							domNodes.splice(i, 0, emptyVNodeStatic);
 							node = domNodes[i];
+              
+							if (prevNode.block) {
+								blockCache[prevNode.key] = false;
+							}
 						}
 					} else {
 						// 4: Remove old keyed node 
@@ -256,6 +261,10 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 							// in 'CreateView' is being used to skip over these
 							domNodes.splice(i, 0, emptyVNodeStatic);
 							node = domNodes[i];
+
+							if (prevNode.block) {
+								blockCache[prevNode.key] = false;
+							}
 						}
 						// 5: Mark old keyed node as Recyclable
 						////////////////////////////
@@ -265,6 +274,15 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 						}
 					}
 				}
+			} 
+			// Ensure new keyed nodes are always inserted even when there is no pool of previously keyed nodes
+			else if(node.key) {
+				if (isNull(prevNode.props)) {
+					domNodesPrev[i] = emptyVNodeStatic;
+				} else {
+					domNodesPrev.splice(i, 0, emptyVNodeStatic);
+				}
+				node.keyedAction = 'insertNew';
 			}
 
 			if (breakLoop && domNodes.length === domNodesPrev.length) break;

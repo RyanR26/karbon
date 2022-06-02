@@ -5,6 +5,7 @@ import { shouldRenderNode } from './shouldRenderNode';
 import { updateChangedNode } from './updateChangedNode';
 import { syncVNodes } from '../vdom/syncVNodes';
 import { getNodeRelations } from './getNodeRelations';
+import { getChangedNodeProps } from '../dom/getChangedNodeProps';
 
 let nodeReplacedFlag;
 let nodeRemovedFlag;
@@ -144,12 +145,24 @@ const patch = () => {
 		}
 
 		case 'handleKeyedUpdate': {
+
 			const currentDomNode = $_parentNode.children[getDomIndex(currentLevel)];
 			const recycledDomNode = prevNode.dom;
 			const keyedAction = renderNode.keyedAction;
 			$_currentNode = recycledDomNode;
 
-			if (keyedAction === 'insertNew') {	
+			if (keyedAction === 'runBlockUpdates') {
+				const keys = Object.keys(renderNode.values);
+				for (let i=0; i<keys.length; i++) {
+					const key = keys[i];
+					const newProps = renderNode.values[key];
+					const { props, values } = getChangedNodeProps(renderNode.props[key], newProps);
+					if (props.length > 0) {
+						updateProperties(props, values, document.getElementById(newProps.id));
+					}
+				}
+			}
+			else if (keyedAction === 'insertNew') {	
 				$_currentNode = createDomElement(node);
 				$_parentNode.insertBefore($_currentNode, currentDomNode);
 				domOpsCount ++;
@@ -195,8 +208,7 @@ const patch = () => {
 	}
 };
 
-export const createView = (appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev, isHydrating) => {
-  // console.log(domNodesPrev, domNodes)
+export const createView = (appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev, isHydrating, blockCache) => {
 	nodeReplacedFlag = false;
 	nodeRemovedFlag = false;
 	handleUntrackedHtmlNodesFlag = false;
@@ -223,7 +235,7 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 	childNodeIndexes.length = 0;
 
 	if (virtualDom.isInitialized() && virtualDom.requiresSync()) {	
-		syncedVNodes = syncVNodes(domNodes.slice(0), domNodesPrev, keyedNodes, keyedNodesPrev);
+		syncedVNodes = syncVNodes(domNodes.slice(0), domNodesPrev, keyedNodes, keyedNodesPrev, blockCache);
 		domNodes = syncedVNodes.domNodes;
 		domNodesPrev = syncedVNodes.domNodesPrev;
 	}

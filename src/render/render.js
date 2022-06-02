@@ -109,7 +109,8 @@ export const renderApp = (
 		changedStateKeys,
 		nodeBuilderInstance.getKeyedNodes(),
 		nodeBuilderInstance.getKeyedNodesPrev(),
-		isHydrating
+		isHydrating,
+		nodeBuilderInstance.getBlockCache()
 	);
   
 	if (!firstRender && !isHydrating) {

@@ -1,4 +1,5 @@
-import { isDefined, isNull, isNotNull, isObject, isArray, objsAreEqual, arraysAreEqual } from '../utils/utils';
+import { isDefined, isUndefined, isNull, isNotNull, objsAreEqual } from '../utils/utils';
+import { getChangedNodeProps } from '../dom/getChangedNodeProps';
 
 const statefulElements = {
 	radio: true
@@ -40,10 +41,17 @@ export const shouldRenderNode = (
 	forceUpdateStartLevel
 ) => {
 
+	if (objPrev.block && objNew.block) {
+		if (isUndefined(objNew.blockProps) || objsAreEqual(objPrev.blockProps, objNew.blockProps)) {
+			return false;
+		} else {
+			updateRenderObj(true, 'handleKeyedUpdate', 'runBlockUpdates', objPrev.blockProps, objNew.blockProps, true);
+			return renderObj;
+		}
+	}
+
 	const prevProps = objPrev.props;
 	const newProps = objNew.props;
-	const props = [];
-	const values = [];  
 	let notChanged = true;
 	let untrackedHtmlNodes = false;
 	let handleKeyedNode = false;
@@ -112,57 +120,7 @@ export const shouldRenderNode = (
 		// create array of keys, values to be updated //
 		// ////////////////////////////////////////////
 
-		const newPropsKeys = Object.keys(newProps);
-		const prevPropsKeys = Object.keys(prevProps);
-
-		let key;
-		let value;
-
-		for (let i = 0; i < newPropsKeys.length; i++) {
-
-			key = newPropsKeys[i];
-			value = newProps[key];
-
-			if (isDefined(prevProps[key])) {
-				if (isArray(value)) {
-					if (!arraysAreEqual(value, prevProps[key])) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				} else if (isObject(value)) {
-					if (!objsAreEqual(value, prevProps[key])) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				} else {
-					if (value !== prevProps[key]) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				}
-			} else {
-				// add new props
-				props[props.length] = key;
-				values[values.length] = value;
-			}
-		}
-
-		// loop over old props to see if there are any that the new node does not have
-		// if so set value to empty to remove
-		for (let i = 0; i < prevPropsKeys.length; i++) {
-			const oldProp = prevPropsKeys[i];
-			if (newPropsKeys.indexOf(oldProp) === -1) {
-				// insert this at the beginning as clearing innerHTML will
-				// strip out any text nodes that are set before
-				if (oldProp !== 'innerHTML') {
-					props[props.length] = oldProp;
-					values[values.length] = oldProp === 'data' ? [] : '';
-				} else {
-					props.unshift(oldProp);
-					values.unshift('');
-				}
-			}
-		}
+		const { props, values } = getChangedNodeProps(prevProps, newProps);
 
 		if (handleKeyedNode) {
 			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, props, values);
