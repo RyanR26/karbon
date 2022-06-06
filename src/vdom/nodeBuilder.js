@@ -48,7 +48,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 
 	const getLazyCount = () => lazyCount;
 
-  const getBlockCache = () => blockCache;
+	const getBlockCache = () => blockCache;
 
 	const nodeClose = tagName => {
 		rootIndex--;
@@ -259,20 +259,66 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		let block = '';
 		if (props) {
 			const propKeys = Object.keys(props);
-			for(let i=0; i<propKeys.length; i++) {
+			for (let i=0; i<propKeys.length; i++) {
 				const propKey = propKeys[i];
 				props[propKey].id = props[propKey].id || `${key}_${propKey}`;
 			}
 		} 
+		// let bubbleEventMapX;
+
 		if (!blockCache[key]) {
 			view(props);
-			block = createString(blockVNodes);
+			// block = createString(blockVNodes, false);
+			block = blockVNodes.slice(0);
 			blockCache[key] = block;
+
+			// if (props) {
+			// 	bubbleEventMapX = {};
+			// 	const propKeys = Object.keys(props);
+			// 	for (let i=0; i<propKeys.length; i++) {
+			// 		const propKey = propKeys[i];
+			// 		const nestedObj = props[propKey];
+			// 		const nestedPropKeys = Object.keys(nestedObj);
+			// 		for (let x=0; x<nestedPropKeys.length; x++) {
+			// 			const nestedKey = nestedPropKeys[x];
+			// 			if (nestedKey[0] === 'o' && nestedKey[1] === 'n' ) {
+			// 				const eventType = nestedKey.slice(2);
+			// 				if (!bubbleEventMapX[eventType]) {
+			// 					bubbleEventMapX[eventType] = {};
+			// 				}
+			// 				bubbleEventMapX[eventType][nestedObj.id] = nestedObj[nestedKey];
+			// 			}
+			// 		}
+			// 	}
+
+			// 	// console.log('bubbleEventMapX ', bubbleEventMapX);
+			// }
 		} else {
-			block = blockCache[key];
+			block = true;
 		}
+
+		// const bubbledEventHandler = (bubbleEventMap, event) => {
+		// 	const type = event.type;
+		// 	const targetId = event.target.id;
+     
+		// 	if (bubbleEventMap[type] && bubbleEventMap[type][targetId]) {
+		// 		const action = bubbleEventMap[type][targetId];
+		//     console.log(targetId, ...action.slice(1))
+		// 		if (Array.isArray(action)) {
+		// 			action[0](...action.slice(1));
+		// 		} else {
+		// 			action();
+		// 		}
+		// 	}
+			
+		// };
+
+
 		creatingBlock = false; 
-		nodeOpen('span', { innerHTML: block }, { key }, true, props);
+		nodeOpen('span', { 
+			// innerHTML: block, 
+			// onclick: [bubbledEventHandler, bubbleEventMapX] 
+		}, { key }, block, props);
 		nodeClose();
 		blockVNodes.length = 0;
 	};
@@ -297,6 +343,6 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		getVDomNodesArray,
 		resetVDomNodesArray,
 		getLazyCount,
-    getBlockCache
+		getBlockCache
 	};
 };

@@ -1,6 +1,7 @@
 import { isUndefined, isDefined, isNull, isNotNull, isNotNullandIsDef, clearObject } from '../utils/utils';
 import { virtualDom } from '../vdom/vDomState';
 import { createDomElement } from './createDomElement';
+import { createFragment } from './createFragment';
 import { shouldRenderNode } from './shouldRenderNode';
 import { updateChangedNode } from './updateChangedNode';
 import { syncVNodes } from '../vdom/syncVNodes';
@@ -23,7 +24,7 @@ let nR;
 let nodeIsListeningToStateKey;
 let renderNode;
 let prevLevel;
-let nodesToSkip;
+// let nodesToSkip;
 let domOpsCount;
 let domOpsComplete;
 let syncedVNodes;
@@ -164,6 +165,9 @@ const patch = () => {
 			}
 			else if (keyedAction === 'insertNew') {	
 				$_currentNode = createDomElement(node);
+				if(node.block) {
+					$_currentNode.appendChild(createFragment(node.block));					
+				}
 				$_parentNode.insertBefore($_currentNode, currentDomNode);
 				domOpsCount ++;
 			}
@@ -209,6 +213,7 @@ const patch = () => {
 };
 
 export const createView = (appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev, isHydrating, blockCache) => {
+
 	nodeReplacedFlag = false;
 	nodeRemovedFlag = false;
 	handleUntrackedHtmlNodesFlag = false;
@@ -223,7 +228,7 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 	nodeIsListeningToStateKey = false;
 	renderNode = undefined;
 	prevLevel = 0;
-	nodesToSkip = 0;
+	// nodesToSkip = 0;
 	domOpsCount = 0;
 	domOpsComplete = false;
 	syncedVNodes = undefined;
@@ -246,22 +251,23 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 	
 		if (!domOpsComplete) {
 
-			if (nodesToSkip > 0) {
-				i = i + nodesToSkip;
-				nodesToSkip = 0;
-			}
+			// if (nodesToSkip > 0) {
+			// 	i = i + nodesToSkip;
+			// 	nodesToSkip = 0;
+			// }
 
 			node = domNodes[i];
 			prevNode = domNodesPrev[i];
 
 			if (isUndefined(node)) break;
 
-			if (virtualDom.isInitialized() && node.staticChildren && (node.keyedAction !== 'insertNew' && isNotNull(node.keyedAction) && isDefined(prevNode) && isNotNull(prevNode.props))) {
-				nodesToSkip = node.keyedChildren.length;
-			} 
+			// if (virtualDom.isInitialized() && node.staticChildren && (node.keyedAction !== 'insertNew' && isNotNull(node.keyedAction) && isDefined(prevNode) && isNotNull(prevNode.props))) {
+			// 	nodesToSkip = node.keyedChildren.length;
+			// } 
 
 			currentLevel = node.level || prevNode.level;	
-			nR = getNodeRelations(i, domNodes, node, domNodes[i-1], domNodes[i+nodesToSkip+1], prevNode, domNodesPrev[i-1], domNodesPrev[i+nodesToSkip+1], currentLevel, nodesToSkip);
+			// nR = getNodeRelations(i, domNodes, node, domNodes[i-1], domNodes[i+nodesToSkip+1], prevNode, domNodesPrev[i-1], domNodesPrev[i+nodesToSkip+1], currentLevel, nodesToSkip);
+			nR = getNodeRelations(i, domNodes, node, domNodes[i-1], domNodes[i+1], prevNode, domNodesPrev[i-1], domNodesPrev[i+1], currentLevel);
 			updateChildNodeFauxDomIndexes(nR, currentLevel);
 
 			if (i !== 0) {
@@ -286,6 +292,10 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 				$_currentNode = createDomElement(node);
 				$_parentNode.appendChild($_currentNode);  
 				node.dom = $_currentNode;
+
+				if (node.block) {
+					$_currentNode.appendChild(createFragment(node.block));					
+				}
 			} 
 			else {
 

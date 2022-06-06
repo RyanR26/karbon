@@ -1,6 +1,6 @@
 import { voidedElements } from '../vdom/voidedElements';
 
-export const createString = vDomNodes => {
+export const createString = (vDomNodes, ssr) => {
 
 	let htmlString = ''; 
 	let node;
@@ -15,7 +15,13 @@ export const createString = vDomNodes => {
 		htmlString += '<' + node.type;
 
 		// add props
-		const propKeys = Object.keys(node.props).filter(value => value !== 'text');
+		let propKeys;
+
+		if(ssr) {
+			propKeys = Object.keys(node.props).filter(value => value !== 'text' && (value[0] != 'o' && value[1] != 'n'));
+		} else {
+			propKeys = Object.keys(node.props).filter(value => value !== 'text');
+		}
 
 		propKeys.forEach(key => {
 
@@ -30,6 +36,21 @@ export const createString = vDomNodes => {
 				});
 				htmlString += '"';
 			}
+			// else if (!ssr && key[0] === 'o' && key[1] === 'n' ) {
+			// 	console.log(key, node);
+			// 	if (Array.isArray(node.props[key])) {
+			// 		node.props[key].forEach((item, index) => {
+      //       if(index === 0) {
+      //         console.log(item.name);
+      //         htmlString += ' ' + 'data-' + item.name;
+      //       } else {
+      //         htmlString += '=' + item ;
+      //       }
+						
+			// 		});
+			// 	}
+        
+			// }
 			else if (Array.isArray(node.props[key])) {
 				if (key === 'data') {
 					node.props.data.forEach(dataAttr => {
@@ -40,7 +61,8 @@ export const createString = vDomNodes => {
 						htmlString += ' ' + className;
 					});
 				}
-			} else {
+			} 
+			else {
 				htmlString += ' ' + key + '="' + node.props[key] + '"';
 			}
 		});

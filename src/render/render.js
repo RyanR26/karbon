@@ -21,10 +21,10 @@ export const renderString = (
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() });
 
 	if (asyncResolve && nodeBuilderInstance.getLazyCount(appId) === 0) {
-		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
+		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray(), true));
 	} 
 	else if (!asyncResolve) {
-		return createString(nodeBuilderInstance.getVDomNodesArray());
+		return createString(nodeBuilderInstance.getVDomNodesArray(), true);
 	} 
 	else {
 		nodeBuilderInstance.resetVDomNodesArray();
