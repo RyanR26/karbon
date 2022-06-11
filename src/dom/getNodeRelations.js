@@ -38,7 +38,6 @@ export const getNodeRelations = (
 		}
 	}
 
-  // if (i < (nodes.length - nodesToSkip) - 1) {
 	if (i < (nodes.length - 1)) {
 		if (nextNodeLevel < currentNodeLevel) {
 			next = 'parent';

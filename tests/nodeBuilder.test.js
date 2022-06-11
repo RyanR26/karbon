@@ -5,16 +5,16 @@ import { nodeBuilder } from '../src/vdom/nodeBuilder';
 const _ = undefined;
 
 const vNode = (type='div', lang='html', props={}, level=1, key=false, keyedAction=null, keyedChildren=null, staticChildren=false, parentComponent, parentComponentIndex=0, subscribesTo=[]) => ({
-	type,
-	lang,
-	props,
-	level,
-	key,
+   type,
+   lang,
+   props,
+   level,
+   key,
   keyedAction,
   keyedChildren,
   staticChildren,
-	parentComponent,
-	parentComponentIndex,
+   parentComponent,
+   parentComponentIndex,
   subscribesTo,
   dom: null
 });
@@ -81,15 +81,15 @@ test('create vDom array - single node', () => {
         e('div', {textContent: props.text}); x('div');
     };
     
-	c({ testComponent }, { 
-		props: {text: 'this is a text string'},
-		subscribe: ['stateKey1', 'stateKey2']
+   c({ testComponent }, { 
+      props: {text: 'this is a text string'},
+      subscribe: ['stateKey1', 'stateKey2']
     });
     
     const getNodes = nodeBuilderInstance.getVDomNodesArray();
     
     expect(getNodes.length).toBe(1);
-	expect(getNodes).toEqual(
+   expect(getNodes).toEqual(
         [
             vNode('div', 'html', {textContent: 'this is a text string'}, 1, false, _, _, _,'testComponent', 0, ['stateKey1', 'stateKey2']),
         ]
@@ -110,15 +110,15 @@ test('create vDom array - multiple nodes + nested nodes', () => {
         e('div'); x('div');
     };
     
-	c({ testComponent }, { 
-		props: {text: 'this is a text string'},
-		subscribe: ['stateKey1', 'stateKey2']
+   c({ testComponent }, { 
+      props: {text: 'this is a text string'},
+      subscribe: ['stateKey1', 'stateKey2']
     });
     
     const getNodes = nodeBuilderInstance.getVDomNodesArray();
     
     expect(getNodes.length).toBe(4);
-	expect(getNodes).toEqual(
+   expect(getNodes).toEqual(
         [
             vNode('div', 'html', {textContent: 'this is a text string'}, 1, false, _, _, _,'testComponent', 0, ['stateKey1', 'stateKey2']),
             vNode('span', 'html', {class: 'nested'}, 2, false, _, _, _,'testComponent', 0, ['stateKey1', 'stateKey2']),
@@ -154,9 +154,9 @@ test('create vDom array - nested component', () => {
         x('div');
     };
     
-	c({ testComponent }, { 
-		props: {text: 'this is a text string'},
-		subscribe: ['stateKey1', 'stateKey2']
+   c({ testComponent }, { 
+      props: {text: 'this is a text string'},
+      subscribe: ['stateKey1', 'stateKey2']
     });
 
     
@@ -164,7 +164,7 @@ test('create vDom array - nested component', () => {
   const getNodes = nodeBuilderInstance.getVDomNodesArray();
     
   expect(getNodes.length).toBe(7);
-	expect(getNodes).toEqual(
+   expect(getNodes).toEqual(
         [
             vNode('div', 'html', {textContent: 'this is a text string'}, 1, false, _, _, _,'testComponent', 0, ['stateKey1', 'stateKey2']),
             vNode('span', 'html', {class: ['nested']}, 2, false, _, _, _,'testComponent', 0, ['stateKey1', 'stateKey2']),

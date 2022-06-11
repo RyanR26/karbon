@@ -54,7 +54,6 @@ export const hydrateApp = (
 	} else {
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 
-    
 		renderApp(
 			appContainer,
 			appView, 

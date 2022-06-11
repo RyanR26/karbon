@@ -37,6 +37,7 @@ export const karbon = (() => ({
 	},
 
 	toStringAsync(appConfig) {
+		
 		return new Promise(resolveOuter => {
 			this.toStringAsyncPromise = new Promise(resolveInner => {
 				this.init(appConfig, true, 'toStringAsync', resolveInner);
@@ -49,10 +50,10 @@ export const karbon = (() => ({
 
 	init(appConfigObj, renderToString, process, asyncStringResolve) {
 
-		this.appCounter ++;
-		
+		this.appCounter++;
+
 		const appId = this.appCounter;
-		
+
 		this.renderToString[appId] = renderToString;
 		this.toStringAsyncResolve[appId] = asyncStringResolve;
 		this.process[appId] = process;
@@ -82,10 +83,10 @@ export const karbon = (() => ({
 
 		/* START.DEV_ONLY */
 		if (isDefined(this.appTap[appId].state)) {
-			this.appTap[appId].state({prevState: null, newState: appConfigObj.state, sequenceId: null});
+			this.appTap[appId].state({ prevState: null, newState: appConfigObj.state, sequenceId: null });
 		}
 		/* END.DEV_ONLY */
-			
+
 		if (renderToString) {
 
 			return renderString(
@@ -95,12 +96,12 @@ export const karbon = (() => ({
 				appId,
 				this.toStringAsyncResolve[appId]
 			);
-		} 
+		}
 
 		else if (this.process[appId] === 'hydrate') {
 
 			// hydration only happens once - update 'process' to ensure dom is rendered on future state changes
-			this.process[appId] = 'render'; 
+			this.process[appId] = 'render';
 
 			hydrateApp(
 				this.appContainer[appId],
@@ -114,7 +115,7 @@ export const karbon = (() => ({
 				appId
 			);
 		}
-			
+
 		else {
 
 			this.appContainer[appId].innerHTML = '';
@@ -141,7 +142,7 @@ export const karbon = (() => ({
 		const injectActions = actionsObj => {
 			const actionsKeys = Object.keys(actionsObj);
 			const actionsName = actionsKeys[0];
-			globalActions[actionsName] = actionsObj[actionsName]({stamp: runTime.stamp, msgs: runTime.messages});
+			globalActions[actionsName] = actionsObj[actionsName]({ stamp: runTime.stamp, msgs: runTime.messages });
 		};
 
 		if (isDefined(actions)) {
@@ -162,18 +163,18 @@ export const karbon = (() => ({
 		const subsStatus = [];
 		/* END.DEV_ONLY */
 
-		for (let i=0; i<subs.length; i++) {
+		for (let i = 0; i < subs.length; i++) {
 
 			const sub = subs[i];
 			const action = isArray(sub.action) ? sub.action[0] : sub.action;
 
 			if (isUndefined(action.name)) {
-				Object.defineProperty(action.prototype,'name',{
-					get:function() {
-						return /function ([^(]*)/.exec( this+'' )[1];
+				Object.defineProperty(action.prototype, 'name', {
+					get: function () {
+						return /function ([^(]*)/.exec(this + '')[1];
 					}
 				});
-			} 
+			}
 
 			const subId = sub.id || action.name + '_' + sub.name.toString().replace(/\s/g, '');
 
@@ -187,21 +188,21 @@ export const karbon = (() => ({
 			if (isFunction(sub.name)) {
 
 				sub.name({
-					opts: sub.options, 
-					action: action, 
-					actionArgs: isArray(sub.action) ? sub.action.slice(1) : [], 
-					condition: isNullorUndef(sub.when) ? true : sub.when, 
+					opts: sub.options,
+					action: action,
+					actionArgs: isArray(sub.action) ? sub.action.slice(1) : [],
+					condition: isNullorUndef(sub.when) ? true : sub.when,
 					subId: subId,
 					subCache: subscription.getCache()
 				});
 
 				/* START.DEV_ONLY */
 				if (isDefined(this.appTap[appId].subscriptions)) {
-					subsStatus.push({name: sub.name.name, active: isNullorUndef(sub.when) ? true : sub.when, action: action.name });
+					subsStatus.push({ name: sub.name.name, active: isNullorUndef(sub.when) ? true : sub.when, action: action.name });
 				}
 				/* END.DEV_ONLY */
 
-			// string denotes event sub
+				// string denotes event sub
 			} else if (isString(sub.name)) {
 
 				if (sub.when || isUndefined(sub.when)) {
@@ -228,7 +229,7 @@ export const karbon = (() => ({
 
 					/* START.DEV_ONLY */
 					if (isDefined(this.appTap[appId].subscriptions)) {
-						subsStatus.push({name: sub.name, active: true, action: action.name});
+						subsStatus.push({ name: sub.name, active: true, action: action.name });
 					}
 					/* END.DEV_ONLY */
 
@@ -245,7 +246,7 @@ export const karbon = (() => ({
 
 					/* START.DEV_ONLY */
 					if (isDefined(this.appTap[appId].subscriptions)) {
-						subsStatus.push({name: sub.name, active: false, action: action.name});
+						subsStatus.push({ name: sub.name, active: false, action: action.name });
 					}
 					/* END.DEV_ONLY */
 				}
@@ -254,7 +255,7 @@ export const karbon = (() => ({
 
 		/* START.DEV_ONLY */
 		if (isDefined(this.appTap[appId].subscriptions)) {
-			this.appTap[appId].subscriptions({subs: subsStatus});
+			this.appTap[appId].subscriptions({ subs: subsStatus });
 		}
 		/* END.DEV_ONLY */
 	},
@@ -304,6 +305,6 @@ export const karbon = (() => ({
 			);
 		}
 	}
-	
+
 }))();
 

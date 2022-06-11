@@ -1,11 +1,10 @@
 /* eslint-disable no-mixed-spaces-and-tabs */
-import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise, isBrowser, objsAreEqual, isObject } from '../utils/utils';
+import { isUndefined, isDefined, isArray, isFunction, clearObject, isPromise, isBrowser } from '../utils/utils';
 /* START.DEV_ONLY */
 import { checkPropTypes, propTypes } from '../utils/utils';
 /* END.DEV_ONLY */
 import { voidedElements } from './voidedElements';
 import { createVNode } from './createVNode';
-import { createString } from '../server/createString';
 
 export const nodeBuilder = (runTime, appGlobalActions) => {
 
@@ -28,7 +27,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 	let rootIndex = 1;
 	let renderingSvg = false;
 	let lazyCount = 0;
-  let renderProcess;
+	let renderProcess;
 
 	const getVDomNodesArray = () => vDomNodesArray;
 	
@@ -76,8 +75,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			subscribesToArray[subscribesToArray.length - 1],
 			renderingSvg,
 			block,
-			blockProps,
-    );
+			blockProps
+		);
 
 		if (renderProcess === 'creatingHydrationLayer') {
 			Object.keys(vNode.props).map(key => {
@@ -214,44 +213,44 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 
 	const lazy = (importModule, lazyComponent, loading, error, time) => {
 
-    const cacheKey = importModule.toString().replace(/ /g, '');
-    const creatingHydrationLayer = renderProcess === 'creatingHydrationLayer';
+		const cacheKey = importModule.toString().replace(/ /g, '');
+		const creatingHydrationLayer = renderProcess === 'creatingHydrationLayer';
 
 		if (lazyCache[cacheKey] === 'error') {
 			if (isFunction(error)) error();
 		}
 		else if (isDefined(lazyCache[cacheKey])) {
 			const lazy = lazyCache[cacheKey][0];
-      if (lazyCount > 0 && lazyCache[cacheKey] !== 'loading') lazyCount --;
+			if (lazyCount > 0 && lazyCache[cacheKey] !== 'loading') lazyCount --;
 			if (isFunction(lazy)) lazy(lazyCache[cacheKey][1]);
 		} 
 		else {
-      if (lazyCache[cacheKey] !== 'loading') {
-        if (isFunction(loading)) loading();
-        lazyCache[cacheKey] = 'loading';
-        lazyCount ++;
-        const thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
+			if (lazyCache[cacheKey] !== 'loading') {
+				if (isFunction(loading)) loading();
+				lazyCache[cacheKey] = 'loading';
+				lazyCount ++;
+				const thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
       
-        thenable
-          .then(module => {
-            setTimeout(() => {
-              lazyCache[cacheKey] = [lazyComponent, module];
-              runTime.forceReRender(creatingHydrationLayer);
-              if (isBrowser() && !creatingHydrationLayer) {
-                window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
-              }
-            }, time || 0);
-          })
-          .catch(error => {
+				thenable
+					.then(module => {
+						setTimeout(() => {
+							lazyCache[cacheKey] = [lazyComponent, module];
+							runTime.forceReRender(creatingHydrationLayer);
+							if (isBrowser() && !creatingHydrationLayer) {
+								window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+							}
+						}, time || 0);
+					})
+					.catch(error => {
             console.error(error); // eslint-disable-line
-            lazyCache[cacheKey] = 'error';
-            runTime.forceReRender(creatingHydrationLayer);
-            if (isBrowser() && !creatingHydrationLayer) {
-              window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
-            }
+						lazyCache[cacheKey] = 'error';
+						runTime.forceReRender(creatingHydrationLayer);
+						if (isBrowser() && !creatingHydrationLayer) {
+							window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+						}
             
-          })
-      }
+					});
+			}
 
 		}
 	};
@@ -262,11 +261,11 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		let block = '';
 
 		if (props) {
-      const propKeys = Object.keys(props);
-      for (let i=0; i<propKeys.length; i++) {
-        const propKey = propKeys[i];
-        props[propKey].id = props[propKey].id || `${key}_${propKey}`;
-      }
+			const propKeys = Object.keys(props);
+			for (let i=0; i<propKeys.length; i++) {
+				const propKey = propKeys[i];
+				props[propKey].id = props[propKey].id || `${key}_${propKey}`;
+			}
 		} 
     
 		if (!blockCache[key]) {
@@ -279,16 +278,16 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 
 		creatingBlock = false; 
 		nodeOpen(tag, {}, { key }, block, props);
-    // if creating string render children inside block containing element
-    if (renderProcess === 'toString') {
-      view(props);
-    }
+		// if creating string render children inside block containing element
+		if (renderProcess === 'toString') {
+			view(props);
+		}
 		nodeClose();
 		blockVNodes.length = 0;
 	};
 
 	const renderRootComponent = (comp, data, process) => {
-    renderProcess = process;
+		renderProcess = process;
 		component(comp, data);
 	};
 
