@@ -1,6 +1,6 @@
 import { voidedElements } from '../vdom/voidedElements';
 
-export const createString = (vDomNodes, ssr) => {
+export const createString = vDomNodes => {
 
 	let htmlString = ''; 
 	let node;
@@ -17,11 +17,8 @@ export const createString = (vDomNodes, ssr) => {
 		// add props
 		let propKeys;
 
-		if(ssr) {
-			propKeys = Object.keys(node.props).filter(value => value !== 'text' && (value[0] != 'o' && value[1] != 'n'));
-		} else {
-			propKeys = Object.keys(node.props).filter(value => value !== 'text');
-		}
+		// remove test and event handlers from pros obj
+		propKeys = Object.keys(node.props).filter(value => value !== 'text' && (value[0] != 'o' && value[1] != 'n'));
 
 		propKeys.forEach(key => {
 
@@ -36,21 +33,6 @@ export const createString = (vDomNodes, ssr) => {
 				});
 				htmlString += '"';
 			}
-			// else if (!ssr && key[0] === 'o' && key[1] === 'n' ) {
-			// 	console.log(key, node);
-			// 	if (Array.isArray(node.props[key])) {
-			// 		node.props[key].forEach((item, index) => {
-      //       if(index === 0) {
-      //         console.log(item.name);
-      //         htmlString += ' ' + 'data-' + item.name;
-      //       } else {
-      //         htmlString += '=' + item ;
-      //       }
-						
-			// 		});
-			// 	}
-        
-			// }
 			else if (Array.isArray(node.props[key])) {
 				if (key === 'data') {
 					node.props.data.forEach(dataAttr => {

@@ -11,7 +11,7 @@ export const createVNode = (
 	subscribesTo, 
 	renderingSvg,
 	block,
-  blockProps
+	blockProps
 ) => {
 
 	const props = {}; 
@@ -36,8 +36,8 @@ export const createVNode = (
 		parentComponentIndex,
 		subscribesTo,
 		dom: null,
-    block,
-    blockProps
+		block,
+		blockProps
 	};
 };
 

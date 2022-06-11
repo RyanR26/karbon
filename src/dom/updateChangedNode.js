@@ -2,7 +2,7 @@ import { isEmpty, isNotEmpty, isString, isArray, isDefined, isUndefined } from '
 
 export const updateChangedNode = (prop, value, node) => {
 
-  // console.log(prop, value, node)
+	// console.log(prop, value, node)
 	switch (prop) {
 
 	case 'class': {
@@ -64,7 +64,11 @@ export const updateChangedNode = (prop, value, node) => {
 			if (isString(value)) {
 				node[prop] = null;
 			} else {
-				node[prop] = event => value[0].apply(null, [...value.slice(1), event]);
+				if (isArray(value)) {
+					node[prop] = event => value[0].apply(null, [...value.slice(1), event]);
+				} else {
+					node[prop] = event => value.apply(null, [event]);
+				}
 			}
 		}
 		else if (isUndefined(node[prop]) || node instanceof SVGElement) {

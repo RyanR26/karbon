@@ -12,7 +12,9 @@ const emptyVNodeStatic = {
 	parentComponent: null,
 	parentComponentIndex: null,
 	subscribesTo: null,
-	dom: null
+	dom: null,
+	block: false,
+	blockProps: undefined
 };
 
 const recycledVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recycled' });
@@ -44,7 +46,7 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, b
 				domNodesPrev[i] = emptyVNodeStatic;  	
 			} 
 			else if (isUndefined(node)) {
-				domNodes[i] = emptyVNodeStatic;  
+				domNodes[i] = emptyVNodeStatic;
 			}
 			else if (prevNode.level > node.level) {
 				domNodes.splice(i, 0, emptyVNodeStatic);
@@ -52,11 +54,14 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, b
 			else if (prevNode.level < node.level) {
 				domNodesPrev.splice(i, 0, emptyVNodeStatic);
 			}
-      
+
 			if (i === domNodes.length - 1) {
 				const remaining = domNodesPrev.length - domNodes.length;
 				if (remaining > 0) {
 					for (let x=1; x <= remaining; x++) {
+						if (domNodesPrev[domNodes.length].block) {         
+							blockCache[domNodesPrev[domNodes.length].key] = false;
+						}
 						domNodes[domNodes.length] = emptyVNodeStatic;
 						breakLoop = true;
 					}
@@ -145,6 +150,9 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, b
 						// 2: Remove previous node (keyed or non-keyed)
 						//////////////////////////////////////////////////////////
 						else if (isFalse(prevNode.key) || !isOldNodePresentInNewKeyedPool) {
+							if (prevNode.block) {
+								blockCache[prevNode.key] = false;
+							}
 							domNodes.splice(i, 0, emptyVNodeStatic);
 							node = domNodes[i];
 						}
@@ -191,11 +199,11 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, b
 				// Reconciler will ignore these nodes and decrement the dom child index
 				// synced nodes = {key: 'keyName'} : {key: 'keyName, keyedAction: 'recycled', props: null}
         
-				// 3: Replace old keyed node with unkeyed node
+				// 3: Remove old keyed node
 				// {key: 'keyName'} : {key: false, props: {}}
 				// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
 				// Action - Prev keyed node can be removed as it doesn't make up part of the UI anymore
-				// Make prev node key = false to trigger replace update
+				// Remove prev keyed node from dom
 
 				// 4: Remove old keyed node 
 				// {key: 'keyName'} : {key: false, props: null}
@@ -238,33 +246,29 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, b
 							domNodes.splice(i, 0, recycledVNodeStatic);
 							removeKeyedChildrenFromOldTree();
 						}
-						// 3: Replace old keyed node with unkeyed node
+						// 3: Remove old keyed node
 						//////////////////////////////////////////////
 						else if (!isOldNodePresentInNewKeyedPool) {
-							// prevNode.key = false;
 							// no need to remove children of keyed node from tree as the nodeRemovedFlag 
 							// in 'CreateView' is being used to skip over these
-             
-							domNodes.splice(i, 0, emptyVNodeStatic);
-							node = domNodes[i];
-              
 							if (prevNode.block) {
 								blockCache[prevNode.key] = false;
 							}
+             
+							domNodes.splice(i, 0, emptyVNodeStatic);
+							node = domNodes[i];
 						}
 					} else {
 						// 4: Remove old keyed node 
 						///////////////////////////
 						if (!isOldNodePresentInNewKeyedPool) {
-							// prevNode.key = false;
 							// no need to remove children of keyed node from tree as the nodeRemovedFlag 
 							// in 'CreateView' is being used to skip over these
-							domNodes.splice(i, 0, emptyVNodeStatic);
-							node = domNodes[i];
-
 							if (prevNode.block) {
 								blockCache[prevNode.key] = false;
 							}
+							domNodes.splice(i, 0, emptyVNodeStatic);
+							node = domNodes[i];
 						}
 						// 5: Mark old keyed node as Recyclable
 						////////////////////////////
@@ -280,6 +284,9 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, b
 				if (isNull(prevNode.props)) {
 					domNodesPrev[i] = emptyVNodeStatic;
 				} else {
+					if (i === domNodesPrev.length-1) {
+						domNodes[domNodes.length] = emptyVNodeStatic;
+					}
 					domNodesPrev.splice(i, 0, emptyVNodeStatic);
 				}
 				node.keyedAction = 'insertNew';

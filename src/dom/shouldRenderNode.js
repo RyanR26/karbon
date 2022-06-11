@@ -42,10 +42,14 @@ export const shouldRenderNode = (
 ) => {
 
 	if (objPrev.block && objNew.block) {
-		if (isUndefined(objNew.blockProps) || objsAreEqual(objPrev.blockProps, objNew.blockProps)) {
+		if (isNull(objNew.keyedAction) && (isUndefined(objNew.blockProps) || objsAreEqual(objPrev.blockProps, objNew.blockProps))) {
 			return false;
 		} else {
-			updateRenderObj(true, 'handleKeyedUpdate', 'runBlockUpdates', objPrev.blockProps, objNew.blockProps, true);
+			if(objNew.keyedAction === 'insertOld' || objNew.keyedAction === 'swap' ) {
+				updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, objPrev.blockProps, objNew.blockProps, true);
+			} else {
+				updateRenderObj(true, 'handleKeyedUpdate', 'runBlockUpdates', objPrev.blockProps, objNew.blockProps, true);
+			}
 			return renderObj;
 		}
 	}
@@ -80,7 +84,11 @@ export const shouldRenderNode = (
 		// which were removed when parent was replaced. This override continues for as long
 		// as the node being added is a child of the parent which was replaced.
 		else {
-			updateRenderObj(true, 'newNode');
+			if (objNew.keyedAction === 'insertNew') {
+				updateRenderObj(true, 'handleKeyedUpdate', 'insertNew');
+			} else {
+				updateRenderObj(true, 'newNode');
+			}
 			return renderObj;
 		}
 	}
@@ -140,7 +148,7 @@ export const shouldRenderNode = (
 			untrackedHtmlNodes = true;
 		}
 		if (objNew.keyedAction === 'insertNew') {
-			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, undefined, undefined, untrackedHtmlNodes);
+			updateRenderObj(true, 'handleKeyedUpdate', 'insertNew', undefined, undefined, untrackedHtmlNodes);
 		} else {
 			updateRenderObj(true, 'newNode', objPrev.keyedAction, undefined, undefined, untrackedHtmlNodes);
 		}
@@ -153,10 +161,10 @@ export const shouldRenderNode = (
 	else if (isNotNull(prevProps) && isNull(newProps)) {
 
 		if (objNew.keyedAction === 'recycled') {
-			return objNew.keyedAction;
+			return 'recycled';
 		}
 		else if (objNew.keyedAction === 'recyclable') {
-			updateRenderObj(true, objNew.keyedAction);
+			updateRenderObj(true, 'recyclable');
 			return renderObj;
 		}
 		else {

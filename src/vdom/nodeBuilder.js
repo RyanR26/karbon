@@ -27,8 +27,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 	let vNode;
 	let rootIndex = 1;
 	let renderingSvg = false;
-	let creatingHydrationLayer = false;
 	let lazyCount = 0;
+  let renderProcess;
 
 	const getVDomNodesArray = () => vDomNodesArray;
 	
@@ -64,7 +64,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		// const createElementObj = (type, parentComponentIndex, id, data, level, key, parentComponentName, subscribesTo)
 		keyName = flags.key;
 		isKeyed = keyName !== false;
-			
+
 		vNode = createVNode(
 			tagName,
 			componentActiveIndexArray[componentActiveIndexArray.length - 1],
@@ -76,10 +76,10 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			subscribesToArray[subscribesToArray.length - 1],
 			renderingSvg,
 			block,
-			blockProps
-		);
+			blockProps,
+    );
 
-		if (creatingHydrationLayer) {
+		if (renderProcess === 'creatingHydrationLayer') {
 			Object.keys(vNode.props).map(key => {
 				if (key[0] === 'o' && key[1] === 'n') {
 					vNode.props[key] = '';
@@ -124,8 +124,6 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		if (!voidedElements[tagName]) {
 			rootIndex++;
 		}
-
-
 	};
 	
 	const component = (comp, data = {}) => {
@@ -216,126 +214,86 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 
 	const lazy = (importModule, lazyComponent, loading, error, time) => {
 
-		const cacheKey = importModule.toString().replace(/ /g, '');
+    const cacheKey = importModule.toString().replace(/ /g, '');
+    const creatingHydrationLayer = renderProcess === 'creatingHydrationLayer';
 
 		if (lazyCache[cacheKey] === 'error') {
 			if (isFunction(error)) error();
 		}
 		else if (isDefined(lazyCache[cacheKey])) {
 			const lazy = lazyCache[cacheKey][0];
-			lazyCount --;
+      if (lazyCount > 0 && lazyCache[cacheKey] !== 'loading') lazyCount --;
 			if (isFunction(lazy)) lazy(lazyCache[cacheKey][1]);
 		} 
 		else {
-			if (isFunction(loading)) loading();
-			lazyCount ++;
-			const thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
-		
-			thenable
-				.then(module => {
-					setTimeout(() => {
-						lazyCache[cacheKey] = [lazyComponent, module];
-						runTime.forceReRender(creatingHydrationLayer);
-						if (isBrowser() && !creatingHydrationLayer) {
-							window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
-						}
-					}, time || 0);
-				})
-				.catch(error => {
-					console.error(error); // eslint-disable-line
-					lazyCache[cacheKey] = 'error';
-					runTime.forceReRender(creatingHydrationLayer);
-					if (isBrowser() && !creatingHydrationLayer) {
-						window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
-					}
-					
-				});
+      if (lazyCache[cacheKey] !== 'loading') {
+        if (isFunction(loading)) loading();
+        lazyCache[cacheKey] = 'loading';
+        lazyCount ++;
+        const thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
+      
+        thenable
+          .then(module => {
+            setTimeout(() => {
+              lazyCache[cacheKey] = [lazyComponent, module];
+              runTime.forceReRender(creatingHydrationLayer);
+              if (isBrowser() && !creatingHydrationLayer) {
+                window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+              }
+            }, time || 0);
+          })
+          .catch(error => {
+            console.error(error); // eslint-disable-line
+            lazyCache[cacheKey] = 'error';
+            runTime.forceReRender(creatingHydrationLayer);
+            if (isBrowser() && !creatingHydrationLayer) {
+              window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+            }
+            
+          })
+      }
+
 		}
 	};
 
-	const block = (key, view, props) => {
+	const block = (key, view, props, tag='div') => {
 
 		creatingBlock = true;    
 		let block = '';
-		if (props) {
-			const propKeys = Object.keys(props);
-			for (let i=0; i<propKeys.length; i++) {
-				const propKey = propKeys[i];
-				props[propKey].id = props[propKey].id || `${key}_${propKey}`;
-			}
-		} 
-		// let bubbleEventMapX;
 
+		if (props) {
+      const propKeys = Object.keys(props);
+      for (let i=0; i<propKeys.length; i++) {
+        const propKey = propKeys[i];
+        props[propKey].id = props[propKey].id || `${key}_${propKey}`;
+      }
+		} 
+    
 		if (!blockCache[key]) {
 			view(props);
-			// block = createString(blockVNodes, false);
 			block = blockVNodes.slice(0);
 			blockCache[key] = block;
-
-			// if (props) {
-			// 	bubbleEventMapX = {};
-			// 	const propKeys = Object.keys(props);
-			// 	for (let i=0; i<propKeys.length; i++) {
-			// 		const propKey = propKeys[i];
-			// 		const nestedObj = props[propKey];
-			// 		const nestedPropKeys = Object.keys(nestedObj);
-			// 		for (let x=0; x<nestedPropKeys.length; x++) {
-			// 			const nestedKey = nestedPropKeys[x];
-			// 			if (nestedKey[0] === 'o' && nestedKey[1] === 'n' ) {
-			// 				const eventType = nestedKey.slice(2);
-			// 				if (!bubbleEventMapX[eventType]) {
-			// 					bubbleEventMapX[eventType] = {};
-			// 				}
-			// 				bubbleEventMapX[eventType][nestedObj.id] = nestedObj[nestedKey];
-			// 			}
-			// 		}
-			// 	}
-
-			// 	// console.log('bubbleEventMapX ', bubbleEventMapX);
-			// }
 		} else {
 			block = true;
 		}
 
-		// const bubbledEventHandler = (bubbleEventMap, event) => {
-		// 	const type = event.type;
-		// 	const targetId = event.target.id;
-     
-		// 	if (bubbleEventMap[type] && bubbleEventMap[type][targetId]) {
-		// 		const action = bubbleEventMap[type][targetId];
-		//     console.log(targetId, ...action.slice(1))
-		// 		if (Array.isArray(action)) {
-		// 			action[0](...action.slice(1));
-		// 		} else {
-		// 			action();
-		// 		}
-		// 	}
-			
-		// };
-
-
 		creatingBlock = false; 
-		nodeOpen('span', { 
-			// innerHTML: block, 
-			// onclick: [bubbledEventHandler, bubbleEventMapX] 
-		}, { key }, block, props);
+		nodeOpen(tag, {}, { key }, block, props);
+    // if creating string render children inside block containing element
+    if (renderProcess === 'toString') {
+      view(props);
+    }
 		nodeClose();
 		blockVNodes.length = 0;
 	};
 
-	const renderRootComponent = (comp, data) => {
-		creatingHydrationLayer = false;
-		component(comp, data);
-	};
-
-	const createHydrationLayer = (comp, data) => {
-		creatingHydrationLayer = true;
+	const renderRootComponent = (comp, data, process) => {
+    renderProcess = process;
 		component(comp, data);
 	};
 
 	return {
 		renderRootComponent,
-		createHydrationLayer,
 		component,
 		getKeyedNodes,
 		getKeyedNodesPrev,

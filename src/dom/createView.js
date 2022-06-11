@@ -8,12 +8,13 @@ import { syncVNodes } from '../vdom/syncVNodes';
 import { getNodeRelations } from './getNodeRelations';
 import { getChangedNodeProps } from '../dom/getChangedNodeProps';
 
+const keyedNodeRecycleBin = {};
+const $_parentNodeStack = [];
+const childNodeIndexes = [];
 let nodeReplacedFlag;
 let nodeRemovedFlag;
 let handleUntrackedHtmlNodesFlag;
 let forceUpdateStartLevel;
-const keyedNodeRecycleBin = {};
-const $_parentNodeStack = [];
 let $_parentNode;
 let $_currentNode;
 let $_prevParentCache;
@@ -24,12 +25,10 @@ let nR;
 let nodeIsListeningToStateKey;
 let renderNode;
 let prevLevel;
-// let nodesToSkip;
 let domOpsCount;
 let domOpsComplete;
 let syncedVNodes;
 let subscribesTo;
-const childNodeIndexes = [];
 
 const getDomIndex = currentLevel => childNodeIndexes[currentLevel];
 
@@ -74,6 +73,19 @@ const updateProperties = (props, values, currentNode) => {
 			values[i], 
 			currentNode
 		);
+	}
+};
+
+const updateBlockProperties = (renderNode) => {
+	const keys = Object.keys(renderNode.values);
+	for (let i=0; i<keys.length; i++) {
+		const key = keys[i];
+		const newProps = renderNode.values[key];
+		const { props, values } = getChangedNodeProps(renderNode.props[key], newProps);
+		if (props.length > 0) {
+			domOpsCount ++;
+			updateProperties(props, values, document.getElementById(newProps.id));
+		}
 	}
 };
 
@@ -153,19 +165,13 @@ const patch = () => {
 			$_currentNode = recycledDomNode;
 
 			if (keyedAction === 'runBlockUpdates') {
-				const keys = Object.keys(renderNode.values);
-				for (let i=0; i<keys.length; i++) {
-					const key = keys[i];
-					const newProps = renderNode.values[key];
-					const { props, values } = getChangedNodeProps(renderNode.props[key], newProps);
-					if (props.length > 0) {
-						updateProperties(props, values, document.getElementById(newProps.id));
-					}
+				if (isNotNull(renderNode.props)) {
+					updateBlockProperties(renderNode);
 				}
 			}
 			else if (keyedAction === 'insertNew') {	
 				$_currentNode = createDomElement(node);
-				if(node.block) {
+				if (node.block) {
 					$_currentNode.appendChild(createFragment(node.block));					
 				}
 				$_parentNode.insertBefore($_currentNode, currentDomNode);
@@ -175,16 +181,30 @@ const patch = () => {
 				$_parentNode.insertBefore(recycledDomNode, currentDomNode);
 				keyedNodeRecycleBin[node.key] = true;
 				domOpsCount ++;
-				if (renderNode.props.length > 0) {
-					updateProperties(renderNode.props, renderNode.values, $_currentNode);
+				if (!node.block) {
+					if (renderNode.props.length > 0) {
+						updateProperties(renderNode.props, renderNode.values, $_currentNode);
+					}
+				}
+				else {
+					if (isNotNull(renderNode.props)) {
+						updateBlockProperties(renderNode);
+					}
 				}
 			}
 			else if (keyedAction === 'swap' || (isDefined(currentDomNode) && !currentDomNode.isEqualNode(recycledDomNode))) {	
 				swapElements($_parentNode, currentDomNode, recycledDomNode);
 				keyedNodeRecycleBin[node.key] = true;
 				domOpsCount ++;
-				if (renderNode.props.length > 0) {
-					updateProperties(renderNode.props, renderNode.values, $_currentNode);
+				if (!node.block) {
+					if (renderNode.props.length > 0) {
+						updateProperties(renderNode.props, renderNode.values, $_currentNode);
+					}
+				}
+				else {
+					if (isNotNull(renderNode.props)) {
+						updateBlockProperties(renderNode);
+					}
 				}
 			} 
 			else if (keyedAction === 'updateAttrs' && renderNode.props.length > 0) {
@@ -228,7 +248,6 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 	nodeIsListeningToStateKey = false;
 	renderNode = undefined;
 	prevLevel = 0;
-	// nodesToSkip = 0;
 	domOpsCount = 0;
 	domOpsComplete = false;
 	syncedVNodes = undefined;
@@ -244,29 +263,19 @@ export const createView = (appContainer, domNodes, domNodesPrev, changedStateKey
 		domNodes = syncedVNodes.domNodes;
 		domNodesPrev = syncedVNodes.domNodesPrev;
 	}
-	
+
 	for (let i = 0, len = domNodes.length; i < len; i++) {
 
 		if (domOpsComplete || virtualDom.getDomUpdatesLimit() === domOpsCount) domOpsComplete = true;
 	
 		if (!domOpsComplete) {
 
-			// if (nodesToSkip > 0) {
-			// 	i = i + nodesToSkip;
-			// 	nodesToSkip = 0;
-			// }
-
 			node = domNodes[i];
 			prevNode = domNodesPrev[i];
 
 			if (isUndefined(node)) break;
 
-			// if (virtualDom.isInitialized() && node.staticChildren && (node.keyedAction !== 'insertNew' && isNotNull(node.keyedAction) && isDefined(prevNode) && isNotNull(prevNode.props))) {
-			// 	nodesToSkip = node.keyedChildren.length;
-			// } 
-
 			currentLevel = node.level || prevNode.level;	
-			// nR = getNodeRelations(i, domNodes, node, domNodes[i-1], domNodes[i+nodesToSkip+1], prevNode, domNodesPrev[i-1], domNodesPrev[i+nodesToSkip+1], currentLevel, nodesToSkip);
 			nR = getNodeRelations(i, domNodes, node, domNodes[i-1], domNodes[i+1], prevNode, domNodesPrev[i-1], domNodesPrev[i+1], currentLevel);
 			updateChildNodeFauxDomIndexes(nR, currentLevel);
 

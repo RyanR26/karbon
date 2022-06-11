@@ -18,13 +18,13 @@ export const renderString = (
 	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
 	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
 	const nodeBuilderInstance = vdomNodeBuilder[appId];
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() });
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'toString');
 
-	if (asyncResolve && nodeBuilderInstance.getLazyCount(appId) === 0) {
-		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray(), true));
+	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
+		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
 	} 
 	else if (!asyncResolve) {
-		return createString(nodeBuilderInstance.getVDomNodesArray(), true);
+		return createString(nodeBuilderInstance.getVDomNodesArray());
 	} 
 	else {
 		nodeBuilderInstance.resetVDomNodesArray();
@@ -47,11 +47,13 @@ export const hydrateApp = (
 	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
 	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
 	const nodeBuilderInstance = vdomNodeBuilder[appId];
-	nodeBuilderInstance.createHydrationLayer({ $$_appRootView : appView }, { props: runTime.getState() });
-	if (nodeBuilderInstance.getLazyCount(appId) !== 0) {
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'creatingHydrationLayer');
+	
+	if (nodeBuilderInstance.getLazyCount() !== 0) {
 		nodeBuilderInstance.resetVDomNodesArray();
 	} else {
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
+
     
 		renderApp(
 			appContainer,
@@ -100,7 +102,7 @@ export const renderApp = (
 	}
 
 	nodeBuilderInstance.setKeyedNodesPrev();
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() });
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'toDom');
 
 	createView(
 		appContainer,
