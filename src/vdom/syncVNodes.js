@@ -12,15 +12,17 @@ const emptyVNodeStatic = {
 	parentComponent: null,
 	parentComponentIndex: null,
 	subscribesTo: null,
-	dom: null
+	dom: null,
+	block: false,
+	blockProps: undefined
 };
 
 const recycledVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recycled' });
 const recyclableVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recyclable' });
 
-// Algorithm for syncing prev vNode tree with new vNode tree
-// Each node in the vtree array needs to be compared to a node on the same level in the old tree
-export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) => {
+// Algorithm for syncing prev vNode array with new vNode array
+// Each node in the vNode array needs to be compared to a node on the same level in the old array
+export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, blockCache) => {
 	
 	let prevNode;
 	let node;
@@ -44,7 +46,7 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 				domNodesPrev[i] = emptyVNodeStatic;  	
 			} 
 			else if (isUndefined(node)) {
-				domNodes[i] = emptyVNodeStatic;  
+				domNodes[i] = emptyVNodeStatic;
 			}
 			else if (prevNode.level > node.level) {
 				domNodes.splice(i, 0, emptyVNodeStatic);
@@ -52,11 +54,14 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 			else if (prevNode.level < node.level) {
 				domNodesPrev.splice(i, 0, emptyVNodeStatic);
 			}
-      
+
 			if (i === domNodes.length - 1) {
 				const remaining = domNodesPrev.length - domNodes.length;
 				if (remaining > 0) {
 					for (let x=1; x <= remaining; x++) {
+						if (domNodesPrev[domNodes.length].block) {         
+							blockCache[domNodesPrev[domNodes.length].key] = false;
+						}
 						domNodes[domNodes.length] = emptyVNodeStatic;
 						breakLoop = true;
 					}
@@ -70,7 +75,7 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 			/////////////////////////////////////////////////////////////
 
 			// 1: Insert old keyed node
-			// {key: false, props: null : {key: 'keyName'} or
+			// {key: false, props: null} : {key: 'keyName'} or
 			// {key: 'keyName2', props: {}} : {key: 'keyName'} 
 			// Current node is keyed and prev node props is null or prev node is keyed but is not in prev pool (has been used already )
 			// Insert old keyed node (move from old location and insert) - the prev dom node does not exist (empty vnode) or has been moved already
@@ -119,7 +124,7 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 					// Try to retrieve current keyed node from prev keyed pool
 					let prevKeyedNode = keyedNodesPrevPool[node.key];
 
-					// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).
+					// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).          
 					if (isDefined(prevKeyedNode)) { 
 
 						const addKeyedChildrenToOldTree = () => {
@@ -145,6 +150,9 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 						// 2: Remove previous node (keyed or non-keyed)
 						//////////////////////////////////////////////////////////
 						else if (isFalse(prevNode.key) || !isOldNodePresentInNewKeyedPool) {
+							if (prevNode.block) {
+								blockCache[prevNode.key] = false;
+							}
 							domNodes.splice(i, 0, emptyVNodeStatic);
 							node = domNodes[i];
 						}
@@ -191,11 +199,11 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 				// Reconciler will ignore these nodes and decrement the dom child index
 				// synced nodes = {key: 'keyName'} : {key: 'keyName, keyedAction: 'recycled', props: null}
         
-				// 3: Replace old keyed node with unkeyed node
+				// 3: Remove old keyed node
 				// {key: 'keyName'} : {key: false, props: {}}
 				// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
 				// Action - Prev keyed node can be removed as it doesn't make up part of the UI anymore
-				// Make prev node key = false to trigger replace update
+				// Remove prev keyed node from dom
 
 				// 4: Remove old keyed node 
 				// {key: 'keyName'} : {key: false, props: null}
@@ -238,20 +246,29 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 							domNodes.splice(i, 0, recycledVNodeStatic);
 							removeKeyedChildrenFromOldTree();
 						}
-						// 3: Replace old keyed node with unkeyed node
+						// 3: Remove old keyed node
 						//////////////////////////////////////////////
 						else if (!isOldNodePresentInNewKeyedPool) {
-							prevNode.key = false;
 							// no need to remove children of keyed node from tree as the nodeRemovedFlag 
 							// in 'CreateView' is being used to skip over these
+							if (prevNode.block) {
+								blockCache[prevNode.key] = false;
+							}
+             
+							domNodes.splice(i, 0, emptyVNodeStatic);
+							node = domNodes[i];
 						}
 					} else {
 						// 4: Remove old keyed node 
 						///////////////////////////
 						if (!isOldNodePresentInNewKeyedPool) {
-							prevNode.key = false;
 							// no need to remove children of keyed node from tree as the nodeRemovedFlag 
 							// in 'CreateView' is being used to skip over these
+							if (prevNode.block) {
+								blockCache[prevNode.key] = false;
+							}
+							domNodes.splice(i, 0, emptyVNodeStatic);
+							node = domNodes[i];
 						}
 						// 5: Mark old keyed node as Recyclable
 						////////////////////////////
@@ -261,6 +278,18 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) =
 						}
 					}
 				}
+			} 
+			// Ensure new keyed nodes are always inserted even when there is no pool of previously keyed nodes
+			else if(node.key) {
+				if (isNull(prevNode.props)) {
+					domNodesPrev[i] = emptyVNodeStatic;
+				} else {
+					if (i === domNodesPrev.length-1) {
+						domNodes[domNodes.length] = emptyVNodeStatic;
+					}
+					domNodesPrev.splice(i, 0, emptyVNodeStatic);
+				}
+				node.keyedAction = 'insertNew';
 			}
 
 			if (breakLoop && domNodes.length === domNodesPrev.length) break;

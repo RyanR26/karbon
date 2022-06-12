@@ -24,6 +24,7 @@ export const createRunTime = (app, appId) => {
 		
 		let callbackData = null;
 		let sequenceCompleted = null;
+		let sequenceCache = null;
 		let stampId;
 		let cache;
 
@@ -37,9 +38,10 @@ export const createRunTime = (app, appId) => {
 
 		const messages = (...msgs) => {
 			callbackData = null;
+			sequenceCache = Object.assign({}, cache);
 			sequenceCounter ++;
 			const sequenceId = (stampId || randomStringId()) + '_' + sequenceCounter ;
-			const sequenceCache = Object.assign({}, cache);
+			// const sequenceCache = Object.assign({}, cache);
 			cache = undefined;
 			stampId = undefined;
       
@@ -47,7 +49,7 @@ export const createRunTime = (app, appId) => {
 			if (isDefined(appTap.dispatch)) appTap.dispatch({msgs, sequenceId});
 			/* END.DEV_ONLY */
 			
-			window.setTimeout(() => {
+			setTimeout(() => {
 				createSequenceArray(sequenceId, msgs, sequenceCache);
 			}, 0);
 
@@ -61,13 +63,14 @@ export const createRunTime = (app, appId) => {
 				callbacks[sequenceId] = callback;
 			} else {
 				delete updatesQueue[sequenceId];
-				callback(callbackData, sequenceCompleted);
+				callback(callbackData, sequenceCompleted, sequenceCache);
 			}
 		};
 		
-		const setCallbackData = (data, didComplete) => {
+		const setCallbackData = (data, didComplete, cache) => {
 			callbackData = data;
 			sequenceCompleted = didComplete;
+			sequenceCache = cache;
 		};
 
 		return {
@@ -85,7 +88,7 @@ export const createRunTime = (app, appId) => {
 		processMsg(sequenceId, msgs[0], _, sequenceCache);
 	};
 
-	const exeQueuedMsgs = (data, sequenceId, sequenceCompleted = true, sequenceCache) => {
+	const exeQueuedMsgs = (data, sequenceId, sequenceCompleted=true, sequenceCache) => {
 
 		if (isDefined(sequenceId)) {
 
@@ -97,10 +100,9 @@ export const createRunTime = (app, appId) => {
 				if (isFunction(callbacks[sequenceId])) {
 					const callbacksClone = Object.assign({}, callbacks);
 					delete callbacks[sequenceId];
-					callbacksClone[sequenceId](data, sequenceCompleted);
-					
+					callbacksClone[sequenceId](data, sequenceCompleted, sequenceCache);
 				} else {
-					updateMethods.setCallbackData(data, sequenceCompleted);
+					updateMethods.setCallbackData(data, sequenceCompleted, sequenceCache);
 				}
 			}
 		} 
@@ -127,7 +129,7 @@ export const createRunTime = (app, appId) => {
 			const renderFlags = msgArray[2] || {};
 
 			/* START.DEV_ONLY */
-			if (isDefined(appTap.message))	appTap.message({msg: msgArray, sequenceId});
+			if (isDefined(appTap.message))	appTap.message({msg: msgArray, sequenceId, input: data});
 			/* END.DEV_ONLY */
 			
 			// msgArray[0] === msgType
@@ -135,7 +137,7 @@ export const createRunTime = (app, appId) => {
 
 			case 'state': {
 
-				if (isDefined(renderFlags.syncNodes)) {
+				if (renderFlags.fixedDomShape) {
 					virtualDom.setSync(false);
 				} else {
 					virtualDom.setSync(true);
@@ -379,7 +381,7 @@ export const createRunTime = (app, appId) => {
 		/* END.DEV_ONLY */
 
 		if (isArray(payload)) {
-			for(let i = 0; i < payload.length; i++) {
+			for (let i = 0; i < payload.length; i++) {
 				const payloadObj = payload[i];
 				updateState(appState, payloadObj.path, payloadObj.value, payloadObj.action, payloadObj.add, payloadObj.remove);
 				changedStateKeys[i] = payloadObj.path[0];
@@ -395,19 +397,16 @@ export const createRunTime = (app, appId) => {
 
 		// run subscriptions function every time state changes. Even with no render
 		app.runHandleSubs(appId);
-
 		if (!preventRender)  {
 			app.reRender(changedStateKeys, sequenceId, appId, sequenceCache);
 		} else {
-			exeQueuedMsgs(undefined, sequenceId, _, sequenceCache);
+			exeQueuedMsgs(_, sequenceId, _, sequenceCache);
 		}
-
 	};
 
-	const forceReRender = () => {
-		// app.runHandleSubs(appId);
-    // console.log(getState())
-		app.reRender(undefined, undefined, appId);
+	const forceReRender = (creatingHydrationLayer) => {
+		virtualDom.setSync(true);
+		app.reRender(undefined, undefined, appId, undefined, creatingHydrationLayer);
 	};
 
 	return {

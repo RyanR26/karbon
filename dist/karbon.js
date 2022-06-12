@@ -104,8 +104,16 @@ var isString = function isString(value) {
 	return typeof value === 'string';
 };
 
+var isPromise = function isPromise(value) {
+	return value instanceof Promise;
+};
+
 var randomStringId = function randomStringId() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(2, 10);
+};
+
+var isBrowser = function isBrowser() {
+	return (typeof window === 'undefined' ? 'undefined' : _typeof(window)) === 'object';
 };
 
 var clearObject = function clearObject(obj) {
@@ -115,10 +123,8 @@ var clearObject = function clearObject(obj) {
 };
 
 var arraysAreEqual = function arraysAreEqual(arr1, arr2) {
-	var arr1Length = arr1.length;
-	var arr2Length = arr2.length;
-	if (arr1Length !== arr2Length) return false;
-	for (var i = 0; i < arr1Length; i++) {
+	if (arr1.length !== arr2.length) return false;
+	for (var i = 0; i < arr1.length; i++) {
 		if (arr1[i] !== arr2[i]) return false;
 	}
 	return true;
@@ -174,14 +180,25 @@ var checkPropTypes = function checkPropTypes(props, propTypes, componentName) {
 
 	if (isDefined(propTypes)) {
 		for (var key in propTypes) {
+
+			var success = false;
+			var failedKey = void 0;
+			var failedValue = void 0;
 			var value = propTypes[key];
-			if (value === 'array') {
-				if (!isArray(props[key])) {
-					propTypeFailed(key, value, componentName);
+
+			if (!isArray(value)) value = [value];
+
+			for (var i = 0; i < value.length; i++) {
+				var val = value[i];
+				if (val === 'array' && isArray(props[key]) || val === _typeof(props[key])) {
+					success = true;
+				} else {
+					failedKey = key;
+					failedValue = value;
 				}
-			} else if (value !== _typeof(props[key])) {
-				propTypeFailed(key, value, componentName);
 			}
+
+			if (!success) propTypeFailed(failedKey, failedValue, componentName);
 		}
 	}
 };
@@ -263,6 +280,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 		var callbackData = null;
 		var sequenceCompleted = null;
+		var sequenceCache = null;
 		var stampId = void 0;
 		var cache = void 0;
 
@@ -280,9 +298,10 @@ var createRunTime = function createRunTime(app, appId) {
 			}
 
 			callbackData = null;
+			sequenceCache = Object.assign({}, cache);
 			sequenceCounter++;
 			var sequenceId = (stampId || randomStringId()) + '_' + sequenceCounter;
-			var sequenceCache = Object.assign({}, cache);
+			// const sequenceCache = Object.assign({}, cache);
 			cache = undefined;
 			stampId = undefined;
 
@@ -290,7 +309,7 @@ var createRunTime = function createRunTime(app, appId) {
 			if (isDefined(appTap.dispatch)) appTap.dispatch({ msgs: msgs, sequenceId: sequenceId });
 			/* END.DEV_ONLY */
 
-			window.setTimeout(function () {
+			setTimeout(function () {
 				createSequenceArray(sequenceId, msgs, sequenceCache);
 			}, 0);
 
@@ -305,14 +324,15 @@ var createRunTime = function createRunTime(app, appId) {
 					callbacks[sequenceId] = callback;
 				} else {
 					delete updatesQueue[sequenceId];
-					callback(callbackData, sequenceCompleted);
+					callback(callbackData, sequenceCompleted, sequenceCache);
 				}
 			};
 		};
 
-		var setCallbackData = function setCallbackData(data, didComplete) {
+		var setCallbackData = function setCallbackData(data, didComplete, cache) {
 			callbackData = data;
 			sequenceCompleted = didComplete;
+			sequenceCache = cache;
 		};
 
 		return {
@@ -344,9 +364,9 @@ var createRunTime = function createRunTime(app, appId) {
 				if (isFunction(callbacks[sequenceId])) {
 					var callbacksClone = Object.assign({}, callbacks);
 					delete callbacks[sequenceId];
-					callbacksClone[sequenceId](data, sequenceCompleted);
+					callbacksClone[sequenceId](data, sequenceCompleted, sequenceCache);
 				} else {
-					updateMethods.setCallbackData(data, sequenceCompleted);
+					updateMethods.setCallbackData(data, sequenceCompleted, sequenceCache);
 				}
 			}
 		}
@@ -354,7 +374,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 	var processMsg = function processMsg(sequenceId, msg, data, sequenceCache) {
 
-		var msgArray = !isFunction(msg) ? msg : isDefined(data) ? msg(data === 'undefined' ? undefined : data, getState(), sequenceCache) : msg(getState(), sequenceCache);
+		var msgArray = !isFunction(msg) ? msg : isNotNullandIsDef(data) ? msg(data === 'undefined' ? undefined : data, getState(), sequenceCache) : msg(getState(), sequenceCache);
 
 		// allow for conditional msgs
 		if (isNull(msgArray)) {
@@ -367,7 +387,7 @@ var createRunTime = function createRunTime(app, appId) {
 			var renderFlags = msgArray[2] || {};
 
 			/* START.DEV_ONLY */
-			if (isDefined(appTap.message)) appTap.message({ msg: msgArray, sequenceId: sequenceId });
+			if (isDefined(appTap.message)) appTap.message({ msg: msgArray, sequenceId: sequenceId, input: data });
 			/* END.DEV_ONLY */
 
 			// msgArray[0] === msgType
@@ -376,7 +396,7 @@ var createRunTime = function createRunTime(app, appId) {
 				case 'state':
 					{
 
-						if (isDefined(renderFlags.syncNodes)) {
+						if (renderFlags.fixedDomShape) {
 							virtualDom.setSync(false);
 						} else {
 							virtualDom.setSync(true);
@@ -402,7 +422,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 						var effectOutput = isArray(msgPayload.args) ? effectFun.apply(undefined, toConsumableArray(msgPayload.args)) : effectFun(msgPayload.args);
 
-						if (effectOutput instanceof Promise) {
+						if (isPromise(effectOutput)) {
 							Promise.resolve(effectOutput).then(function (response) {
 								if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = response;
 								exeQueuedMsgs(response, sequenceId, _, sequenceCache);
@@ -444,9 +464,13 @@ var createRunTime = function createRunTime(app, appId) {
 
 				case 'control':
 
-					if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue)) {
-						if (!msgPayload.if && isNumber(msgPayload.continue)) {
-							updatesQueue[sequenceId].length = msgPayload.continue;
+					if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue) || isNumber(msgPayload.skip)) {
+						if (!msgPayload.if) {
+							if (isNumber(msgPayload.continue)) {
+								updatesQueue[sequenceId].length = msgPayload.continue;
+							} else if (isNumber(msgPayload.skip)) {
+								updatesQueue[sequenceId].splice(0, msgPayload.skip);
+							}
 						}
 						exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse, sequenceId, _, sequenceCache);
 					} else {
@@ -600,7 +624,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 	var runUpdate = function runUpdate(payload, sequenceId, preventRender, sequenceCache) {
 
-		/// update state obj and rerender  ///
+		/// update state obj and re-render  ///
 		///////////////////////////////////// 
 
 		/* START.DEV_ONLY */
@@ -627,20 +651,25 @@ var createRunTime = function createRunTime(app, appId) {
 		if (isDefined(appTap.state)) appTap.state({ prevState: JSON.parse(prevState), newState: appState, sequenceId: sequenceId });
 		/* END.DEV_ONLY */
 
-		// run subrciptions function every time state changes. Even with no render
+		// run subscriptions function every time state changes. Even with no render
 		app.runHandleSubs(appId);
-
 		if (!preventRender) {
 			app.reRender(changedStateKeys, sequenceId, appId, sequenceCache);
 		} else {
-			exeQueuedMsgs(undefined, sequenceId, _, sequenceCache);
+			exeQueuedMsgs(_, sequenceId, _, sequenceCache);
 		}
+	};
+
+	var forceReRender = function forceReRender(creatingHydrationLayer) {
+		virtualDom.setSync(true);
+		app.reRender(undefined, undefined, appId, undefined, creatingHydrationLayer);
 	};
 
 	return {
 		setState: setState,
 		getState: getState,
 		exeQueuedMsgs: exeQueuedMsgs,
+		forceReRender: forceReRender,
 		stamp: updateMethods.stamp,
 		messages: updateMethods.messages
 	};
@@ -697,24 +726,23 @@ var voidedElements = {
 	rect: true
 };
 
-var elProps = void 0;
-
 var createVNode = function createVNode(type, parentComponentIndex, data, level) {
 	var key = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : false;
 	var staticChildren = arguments[5];
 	var parentComponent = arguments[6];
 	var subscribesTo = arguments[7];
 	var renderingSvg = arguments[8];
+	var block = arguments[9];
+	var blockProps = arguments[10];
 
 
 	var props = {};
-
-	elProps = Object.keys(data);
+	var elProps = Object.keys(data);
 
 	for (var i = 0; i < elProps.length; i++) {
 		var prop = elProps[i];
 		var value = data[prop];
-		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : '<span data="untracked-nodes">' + value + '</span>';
+		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : block ? value : '<span data="dangerously-set-innerHTML">' + value + '</span>';
 	}
 
 	return {
@@ -729,13 +757,13 @@ var createVNode = function createVNode(type, parentComponentIndex, data, level) 
 		parentComponent: parentComponent,
 		parentComponentIndex: parentComponentIndex,
 		subscribesTo: subscribesTo,
-		dom: null
+		dom: null,
+		block: block,
+		blockProps: blockProps
 	};
 };
 
 /* eslint-disable no-mixed-spaces-and-tabs */
-
-var actionsCache = {};
 
 var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
@@ -744,6 +772,11 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 	var componentActiveIndexArray = [];
 	var subscribesToArray = [];
 	var keyedNodes = {};
+	var actionsCache = {};
+	var lazyCache = {};
+	var blockCache = {};
+	var blockVNodes = [];
+	var creatingBlock = false;
 	var keyedNodesPrev = void 0;
 	var keyName = void 0;
 	var isKeyed = false;
@@ -752,6 +785,8 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 	var vNode = void 0;
 	var rootIndex = 1;
 	var renderingSvg = false;
+	var lazyCount = 0;
+	var renderProcess = void 0;
 
 	var getVDomNodesArray = function getVDomNodesArray() {
 		return vDomNodesArray;
@@ -767,12 +802,20 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 	var setKeyedNodesPrev = function setKeyedNodesPrev() {
 		keyedNodesPrev = Object.assign({}, keyedNodes);
-		// reset keyeNodes Obj instead of creating new one
+		// reset keyedNodes Obj instead of creating new one
 		clearObject(keyedNodes);
 	};
 
 	var resetVDomNodesArray = function resetVDomNodesArray() {
 		vDomNodesArray.length = 0;
+	};
+
+	var getLazyCount = function getLazyCount() {
+		return lazyCount;
+	};
+
+	var getBlockCache = function getBlockCache() {
+		return blockCache;
 	};
 
 	var nodeClose = function nodeClose(tagName) {
@@ -783,29 +826,49 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 	var nodeOpen = function nodeOpen(tagName) {
 		var data = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
 		var flags = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : { key: false, staticChildren: false };
+		var block = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
+		var blockProps = arguments[4];
 
 
 		if (tagName === 'svg') renderingSvg = true;
 
-		// Dont cache args as vars as more performant - less garbage collection
+		// Don't cache args as vars as more performant - less garbage collection
 		// createElementObj args are :
 		// const createElementObj = (type, parentComponentIndex, id, data, level, key, parentComponentName, subscribesTo)
 		keyName = flags.key;
 		isKeyed = keyName !== false;
 
-		vNode = createVNode(tagName, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg);
+		vNode = createVNode(tagName, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg, block, blockProps);
 
-		// more performant than array.push()
+		if (renderProcess === 'creatingHydrationLayer') {
+			Object.keys(vNode.props).map(function (key) {
+				if (key[0] === 'o' && key[1] === 'n') {
+					vNode.props[key] = '';
+				}
+			});
+		}
+
+		if (creatingBlock) {
+			blockVNodes[blockVNodes.length] = vNode;
+			if (!voidedElements[tagName]) {
+				rootIndex++;
+			}
+			return;
+		}
+
 		vDomNodesArray[vDomNodesArray.length] = vNode;
 
 		// store all keyedNode children on the cached vNode so that when the parent is 
 		// moved the children are moved too and in order to splice back into
 		// the main vdom array for comparison
-		if (isDefined(keyedParent) && rootIndex > keyedParentLevel) {
-			keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
-		} else if (isDefined(keyedParent) && rootIndex === keyedParentLevel) {
-			keyedParent = undefined;
-			keyedParentLevel = undefined;
+
+		if (isDefined(keyedParent)) {
+			if (rootIndex > keyedParentLevel) {
+				keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
+			} else if (rootIndex === keyedParentLevel) {
+				keyedParent = undefined;
+				keyedParentLevel = undefined;
+			}
 		}
 
 		if (isKeyed) {
@@ -822,11 +885,6 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		if (!voidedElements[tagName]) {
 			rootIndex++;
 		}
-	};
-
-	var renderRootComponent = function renderRootComponent(comp, data) {
-		// Render all components top down from root		
-		component(comp, data);
 	};
 
 	var component = function component(comp) {
@@ -893,11 +951,87 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 		// run view render function //
 		// merge local and global actions objects to pass to component
-		view(isDefined(propsFromState) ? Object.assign({}, data.props, propsFromState) : data.props, isDefined(localActions) || isDefined(appGlobalActions) ? Object.assign({}, localActions, appGlobalActions) : undefined, index)(nodeOpen, nodeClose, component);
+		view(isDefined(propsFromState) ? Object.assign({}, data.props, propsFromState) : data.props, isDefined(localActions) || isDefined(appGlobalActions) ? Object.assign({}, localActions, appGlobalActions) : undefined, index)(nodeOpen, nodeClose, component, lazy, block);
 
 		subscribesToArray.length = subscribesToArray.length - 1;
 		componentActiveArray.length = componentActiveArray.length - 1;
 		componentActiveIndexArray.length = componentActiveIndexArray.length - 1;
+	};
+
+	var lazy = function lazy(importModule, lazyComponent, loading, error, time) {
+
+		var cacheKey = importModule.toString().replace(/ /g, '');
+		var creatingHydrationLayer = renderProcess === 'creatingHydrationLayer';
+
+		if (lazyCache[cacheKey] === 'error') {
+			if (isFunction(error)) error();
+		} else if (isDefined(lazyCache[cacheKey])) {
+			var _lazy = lazyCache[cacheKey][0];
+			if (lazyCount > 0 && lazyCache[cacheKey] !== 'loading') lazyCount--;
+			if (isFunction(_lazy)) _lazy(lazyCache[cacheKey][1]);
+		} else {
+			if (lazyCache[cacheKey] !== 'loading') {
+				if (isFunction(loading)) loading();
+				lazyCache[cacheKey] = 'loading';
+				lazyCount++;
+				var thenable = isPromise(importModule) ? Promise.resolve(importModule) : importModule();
+
+				thenable.then(function (module) {
+					setTimeout(function () {
+						lazyCache[cacheKey] = [lazyComponent, module];
+						runTime.forceReRender(creatingHydrationLayer);
+						if (isBrowser() && !creatingHydrationLayer) {
+							window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+						}
+					}, time || 0);
+				}).catch(function (error) {
+					console.error(error); // eslint-disable-line
+					lazyCache[cacheKey] = 'error';
+					runTime.forceReRender(creatingHydrationLayer);
+					if (isBrowser() && !creatingHydrationLayer) {
+						window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+					}
+				});
+			}
+		}
+	};
+
+	var block = function block(key, view, props) {
+		var tag = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 'div';
+
+
+		creatingBlock = true;
+		var block = '';
+
+		if (props) {
+			var propKeys = Object.keys(props);
+			for (var i = 0; i < propKeys.length; i++) {
+				var propKey = propKeys[i];
+				props[propKey].id = props[propKey].id || key + '_' + propKey;
+			}
+		}
+
+		if (!blockCache[key]) {
+			view(props);
+			block = blockVNodes.slice(0);
+			blockCache[key] = block;
+		} else {
+			block = true;
+		}
+
+		creatingBlock = false;
+		nodeOpen(tag, {}, { key: key }, block, props);
+		// if creating string render children inside block containing element
+		if (renderProcess === 'toString') {
+			view(props);
+		}
+		nodeClose();
+		blockVNodes.length = 0;
+	};
+
+	var renderRootComponent = function renderRootComponent(comp, data, process) {
+		renderProcess = process;
+		component(comp, data);
 	};
 
 	return {
@@ -907,49 +1041,44 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		getKeyedNodesPrev: getKeyedNodesPrev,
 		setKeyedNodesPrev: setKeyedNodesPrev,
 		getVDomNodesArray: getVDomNodesArray,
-		resetVDomNodesArray: resetVDomNodesArray
+		resetVDomNodesArray: resetVDomNodesArray,
+		getLazyCount: getLazyCount,
+		getBlockCache: getBlockCache
 	};
 };
 
 /* eslint-disable no-mixed-spaces-and-tabs */
 
-var nodeProps = void 0;
-var elProps$1 = void 0;
-var el = void 0;
-var isSVG = false;
+var documentCreateElement = function documentCreateElement(tag, isSVG) {
+	return isSVG ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
+};
 
 var createDomElement = function createDomElement(node) {
 
-	nodeProps = node.props;
-	elProps$1 = Object.keys(nodeProps);
-
-	if (node.lang !== 'xml') {
-		isSVG = false;
-		el = document.createElement(node.type);
-	} else {
-		isSVG = true;
-		el = document.createElementNS('http://www.w3.org/2000/svg', node.type);
-	}
+	var nodeProps = node.props;
+	var elProps = Object.keys(nodeProps);
+	var isSVG = node.lang === 'xml';
+	var el = documentCreateElement(node.type, isSVG);
 
 	var _loop = function _loop(i, len) {
 
-		var prop = elProps$1[i];
+		var prop = elProps[i];
 		var value = nodeProps[prop];
 
 		if (isObject(value)) {
 			if (isDefined(value.length)) {
 				//Array
-				if (prop[0] === 'o' && prop[1] === 'n') {
-					el[prop] = function (event) {
-						return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
-					};
-				} else if (prop === 'class') {
+				if (prop === 'class') {
 					var classList = value.filter(Boolean); //remove any empty strings
 					if (classList.length > 0) {
 						var _el$classList;
 
 						(_el$classList = el.classList).add.apply(_el$classList, toConsumableArray(classList));
 					}
+				} else if (prop[0] === 'o' && prop[1] === 'n') {
+					el[prop] = function (event) {
+						return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
+					};
 				} else {
 					// add data attrs
 					for (var _i = 0; _i < value.length; _i++) {
@@ -965,29 +1094,112 @@ var createDomElement = function createDomElement(node) {
 					el[prop][key] = value[key];
 				}
 			}
+		} else if (prop === 'text') {
+			el.textContent = value;
+		} else if (prop === 'class') {
+			if (isNotEmpty(value)) el.className = value;
+		} else if (isDefined(el[prop]) && !isSVG) {
+			el[prop] = value;
 		} else {
-			if (prop === 'text') {
-				el.textContent = value;
-			} else if (prop === 'class') {
-				if (isNotEmpty(value)) el.className = value;
-			} else if (isDefined(el[prop]) && !isSVG) {
-				el[prop] = value;
-			} else {
-				el.setAttribute(prop, value);
-			}
+			el.setAttribute(prop, value);
 		}
 	};
 
-	for (var i = 0, len = elProps$1.length; i < len; i++) {
+	for (var i = 0, len = elProps.length; i < len; i++) {
 		_loop(i, len);
 	}
 	return el;
 };
 
-var props = [];
-var values = [];
-var newPropsKeys = void 0;
-var prevPropsKeys = void 0;
+var createFragment = function createFragment(vNodes) {
+
+	var fragment = document.createDocumentFragment();
+	var blockParentNodeStack = [fragment];
+	var nodeLevel = 0;
+
+	vNodes.map(function (node) {
+		if (node.level === nodeLevel) {
+			blockParentNodeStack.length = blockParentNodeStack.length - 1;
+		} else if (node.level < nodeLevel) {
+			blockParentNodeStack.length = blockParentNodeStack.length - (nodeLevel - node.level);
+		}
+
+		var element = createDomElement(node);
+		var parentNode = blockParentNodeStack[blockParentNodeStack.length - 1];
+		parentNode.appendChild(element);
+		blockParentNodeStack[blockParentNodeStack.length] = element;
+		nodeLevel = node.level;
+	});
+
+	return fragment;
+};
+
+var getChangedNodeProps = function getChangedNodeProps(prevProps, newProps) {
+
+	var props = [];
+	var values = [];
+
+	var newPropsKeys = Object.keys(newProps);
+	var prevPropsKeys = Object.keys(prevProps);
+
+	var key = void 0;
+	var value = void 0;
+
+	for (var i = 0; i < newPropsKeys.length; i++) {
+
+		key = newPropsKeys[i];
+		value = newProps[key];
+
+		if (isDefined(prevProps[key])) {
+			if (isArray(value)) {
+				if (!arraysAreEqual(value, prevProps[key])) {
+					props[props.length] = key;
+					values[values.length] = value;
+				}
+			} else if (isObject(value)) {
+				if (!objsAreEqual(value, prevProps[key])) {
+					props[props.length] = key;
+					values[values.length] = value;
+				}
+			} else {
+				if (value !== prevProps[key]) {
+					props[props.length] = key;
+					values[values.length] = value;
+				}
+			}
+		} else {
+			// add new props
+			props[props.length] = key;
+			values[values.length] = value;
+		}
+	}
+
+	// loop over old props to see if there are any that the new node does not have
+	// if so set value to empty to remove
+	for (var _i = 0; _i < prevPropsKeys.length; _i++) {
+		var oldProp = prevPropsKeys[_i];
+		if (newPropsKeys.indexOf(oldProp) === -1) {
+			// insert this at the beginning as clearing innerHTML will
+			// strip out any text nodes that are set before
+			if (oldProp !== 'innerHTML') {
+				props[props.length] = oldProp;
+				values[values.length] = oldProp === 'data' ? [] : '';
+			} else {
+				props.unshift(oldProp);
+				values.unshift('');
+			}
+		}
+	}
+
+	return {
+		props: props,
+		values: values
+	};
+};
+
+var statefulElements = {
+	radio: true
+};
 
 var renderObj = {
 	should: null,
@@ -998,12 +1210,13 @@ var renderObj = {
 	values: null
 };
 
-// set props on cached obj. Obj reuse instead of creating new obj. Memory mangement.
+// set props on cached obj. Obj reuse instead of creating new obj. Memory management.
 var updateRenderObj = function updateRenderObj(should) {
 	var action = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'none';
 	var keyedAction = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
 	var props = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : null;
 	var values = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : null;
+	var untrackedHtmlNodes = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : false;
 
 	renderObj.should = should;
 	renderObj.action = action;
@@ -1013,29 +1226,27 @@ var updateRenderObj = function updateRenderObj(should) {
 	renderObj.values = values;
 };
 
-var prevProps = void 0;
-var newProps = void 0;
-var notChanged = void 0;
-var untrackedHtmlNodes = void 0;
-var handleKeyedNode = void 0;
-var overrideDefaultAction = void 0;
-var forceReplace = void 0;
-
-var statefulElements = {
-	radio: true
-};
-
 var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplacedFlag, nodeRemovedFlag, currentLevel, forceUpdateStartLevel) {
 
-	prevProps = objPrev.props;
-	newProps = objNew.props;
-	notChanged = true;
-	untrackedHtmlNodes = false;
-	handleKeyedNode = false;
-	forceReplace = false;
-	//reset arrays
-	props.length = 0;
-	values.length = 0;
+	if (objPrev.block && objNew.block) {
+		if (isNull(objNew.keyedAction) && (isUndefined(objNew.blockProps) || objsAreEqual(objPrev.blockProps, objNew.blockProps))) {
+			return false;
+		} else {
+			if (objNew.keyedAction === 'insertOld' || objNew.keyedAction === 'swap') {
+				updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, objPrev.blockProps, objNew.blockProps, true);
+			} else {
+				updateRenderObj(true, 'handleKeyedUpdate', 'runBlockUpdates', objPrev.blockProps, objNew.blockProps, true);
+			}
+			return renderObj;
+		}
+	}
+
+	var prevProps = objPrev.props;
+	var newProps = objNew.props;
+	var notChanged = true;
+	var untrackedHtmlNodes = false;
+	var handleKeyedNode = false;
+	var forceReplace = false;
 
 	if (objNew.type !== objPrev.type || isNull(prevProps) || isNull(newProps) || isNotNull(objNew.keyedAction)) {
 		notChanged = false;
@@ -1043,7 +1254,7 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 		notChanged = objsAreEqual(prevProps, newProps);
 	}
 
-	overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && currentLevel > forceUpdateStartLevel;
+	var overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && currentLevel > forceUpdateStartLevel;
 
 	if (overrideDefaultAction) {
 
@@ -1057,10 +1268,14 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 		// In such cases the children Dom els have been removed but the vdom
 		// nodes still remain unchanged (when comparing) and therefore dont trigger a
 		// dom update. We need to force creation of new nodes to replace those
-		// which were removed when parent was replaced. This overide continues for as long
+		// which were removed when parent was replaced. This override continues for as long
 		// as the node being added is a child of the parent which was replaced.
 		else {
-				updateRenderObj(true, 'newNode');
+				if (objNew.keyedAction === 'insertNew') {
+					updateRenderObj(true, 'handleKeyedUpdate', 'insertNew');
+				} else {
+					updateRenderObj(true, 'newNode');
+				}
 				return renderObj;
 			}
 	}
@@ -1077,7 +1292,7 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 
 		// when comparing 2 stateful elements - replace previous element with new as
 		// sometimes the new state is not applied. eg. radio box checked attribute when 
-		// the group is differnet from the previous.
+		// the group is different from the previous.
 		if (statefulElements[prevProps.type] && prevProps.type === newProps.type) {
 			forceReplace = true;
 		}
@@ -1092,67 +1307,17 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 		// because innerHTML will cause 'untracked' DOM nodes to be added we need to trigger
 		// a replacement of the node
 		if ((objNew.type !== objPrev.type || untrackedHtmlNodes || forceReplace) && !handleKeyedNode) {
-			updateRenderObj(true, 'replaceNode');
+			updateRenderObj(true, 'replaceNode', undefined, undefined, undefined, untrackedHtmlNodes);
 			return renderObj;
 		}
 
 		//// update node props //
-		// create array of keys, values to be updates //
+		// create array of keys, values to be updated //
 		// ////////////////////////////////////////////
 
-		// created arrays once and reuse. reduce GC
-		// reset cached created array
-		newPropsKeys = Object.keys(newProps);
-		prevPropsKeys = Object.keys(prevProps);
-
-		var key = void 0;
-		var value = void 0;
-
-		for (var i = 0; i < newPropsKeys.length; i++) {
-
-			key = newPropsKeys[i];
-			value = newProps[key];
-
-			if (isDefined(prevProps[key])) {
-				if (isArray(value)) {
-					if (!arraysAreEqual(value, prevProps[key])) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				} else if (isObject(value)) {
-					if (!objsAreEqual(value, prevProps[key])) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				} else {
-					if (value !== prevProps[key]) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				}
-			} else {
-				// add new props
-				props[props.length] = key;
-				values[values.length] = value;
-			}
-		}
-
-		// loop over old props to see if there are any that the new node does not have
-		// if so set value to empty to remove
-		for (var _i = 0; _i < prevPropsKeys.length; _i++) {
-			var oldProp = prevPropsKeys[_i];
-			if (newPropsKeys.indexOf(oldProp) === -1) {
-				// insert this at the beginning as clearing inerHTML will
-				// strip out any text nodes that are set before
-				if (oldProp !== 'innerHTML') {
-					props[props.length] = oldProp;
-					values[values.length] = oldProp === 'class' || oldProp === 'dataAttrs' ? [] : '';
-				} else {
-					props.unshift(oldProp);
-					values.unshift('');
-				}
-			}
-		}
+		var _getChangedNodeProps = getChangedNodeProps(prevProps, newProps),
+		    props = _getChangedNodeProps.props,
+		    values = _getChangedNodeProps.values;
 
 		if (handleKeyedNode) {
 			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, props, values);
@@ -1171,9 +1336,9 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 				untrackedHtmlNodes = true;
 			}
 			if (objNew.keyedAction === 'insertNew') {
-				updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction);
+				updateRenderObj(true, 'handleKeyedUpdate', 'insertNew', undefined, undefined, untrackedHtmlNodes);
 			} else {
-				updateRenderObj(true, 'newNode', objPrev.keyedAction);
+				updateRenderObj(true, 'newNode', objPrev.keyedAction, undefined, undefined, untrackedHtmlNodes);
 			}
 
 			return renderObj;
@@ -1184,9 +1349,9 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 		else if (isNotNull(prevProps) && isNull(newProps)) {
 
 				if (objNew.keyedAction === 'recycled') {
-					return objNew.keyedAction;
+					return 'recycled';
 				} else if (objNew.keyedAction === 'recyclable') {
-					updateRenderObj(true, objNew.keyedAction);
+					updateRenderObj(true, 'recyclable');
 					return renderObj;
 				} else {
 					updateRenderObj(true, 'removeNode');
@@ -1194,17 +1359,16 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 				}
 			}
 
-			// If prenode and node props are null do nothing
+			// If prev node and node props are null do nothing
 			// should never be the case but just here in case to prevent errors
 			else {
 					return false;
 				}
 };
 
-var firstChildNode = void 0;
-
 var updateChangedNode = function updateChangedNode(prop, value, node) {
 
+	// console.log(prop, value, node)
 	switch (prop) {
 
 		case 'class':
@@ -1215,7 +1379,7 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 				} else if (isArray(value) && value.length > 0) {
 					var _node$classList;
 
-					(_node$classList = node.classList).add.apply(_node$classList, toConsumableArray(value.filter(Boolean))); //filter out aall empty strings
+					(_node$classList = node.classList).add.apply(_node$classList, toConsumableArray(value.filter(Boolean))); //filter out all empty strings
 				}
 				break;
 			}
@@ -1238,7 +1402,7 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 			}
 		case 'text':
 			if (node.hasChildNodes()) {
-				firstChildNode = node.firstChild;
+				var firstChildNode = node.firstChild;
 				if (isDefined(firstChildNode.data)) {
 					firstChildNode.data = value;
 				} else {
@@ -1249,8 +1413,8 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 				node.textContent = value;
 			}
 			break;
-		case 'dataAttrs':
-			// remove al data attrs
+		case 'data':
+			// remove all data attrs
 			for (var _i = 0; _i < node.attributes.length; _i++) {
 				if (/^data-/i.test(node.attributes[_i].name)) {
 					node.removeAttribute(node.attributes[_i].name);
@@ -1265,9 +1429,19 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 			break;
 		default:
 			if (prop[0] === 'o' && prop[1] === 'n') {
-				node[prop] = function (event) {
-					return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
-				};
+				if (isString(value)) {
+					node[prop] = null;
+				} else {
+					if (isArray(value)) {
+						node[prop] = function (event) {
+							return value[0].apply(null, [].concat(toConsumableArray(value.slice(1)), [event]));
+						};
+					} else {
+						node[prop] = function (event) {
+							return value.apply(null, [event]);
+						};
+					}
+				}
 			} else if (isUndefined(node[prop]) || node instanceof SVGElement) {
 				node.setAttribute(prop, value);
 			} else if (isEmpty(value)) {
@@ -1291,256 +1465,292 @@ var emptyVNodeStatic = {
 	parentComponent: null,
 	parentComponentIndex: null,
 	subscribesTo: null,
-	dom: null
+	dom: null,
+	block: false,
+	blockProps: undefined
 };
 
 var recycledVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recycled' });
 var recyclableVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recyclable' });
 
-// Algorithim for syncing prev vNode tree with new vNode tree
+// Algorithm for syncing prev vNode tree with new vNode tree
 // Each node in the vtree array needs to be compared to a node on the same level in the old tree
-var syncVNodes = function syncVNodes(domNodes, domNodesPrev, keyedNodes, keyedNodesPrev) {
+var syncVNodes = function syncVNodes(domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, blockCache) {
 
 	var prevNode = void 0;
 	var node = void 0;
 	var breakLoop = false;
 
-	var _loop = function _loop(i) {
+	if (domNodes.length === 0) {
 
-		prevNode = domNodesPrev[i];
-		node = domNodes[i];
-		breakLoop = false;
+		for (var i = 0; i < domNodesPrev.length; i++) {
+			domNodes[i] = emptyVNodeStatic;
+		}
+	} else {
+		var _loop = function _loop(_i) {
 
-		if (isUndefined(prevNode)) {
-			domNodesPrev[i] = emptyVNodeStatic;
-		} else {
-			if (prevNode.level > node.level) {
-				domNodes.splice(i, 0, emptyVNodeStatic);
+			prevNode = domNodesPrev[_i];
+			node = domNodes[_i];
+			breakLoop = false;
+
+			if (isUndefined(prevNode)) {
+				domNodesPrev[_i] = emptyVNodeStatic;
+			} else if (isUndefined(node)) {
+				domNodes[_i] = emptyVNodeStatic;
+			} else if (prevNode.level > node.level) {
+				domNodes.splice(_i, 0, emptyVNodeStatic);
 			} else if (prevNode.level < node.level) {
-				domNodesPrev.splice(i, 0, emptyVNodeStatic);
+				domNodesPrev.splice(_i, 0, emptyVNodeStatic);
 			}
-		}
 
-		if (i === domNodes.length - 1) {
-			var remaining = domNodesPrev.length - domNodes.length;
-			if (remaining > 0) {
-				for (var x = 1; x <= remaining; x++) {
-					domNodes[domNodes.length] = emptyVNodeStatic;
-					breakLoop = true;
-				}
-			}
-		}
-
-		prevNode = domNodesPrev[i];
-		node = domNodes[i];
-
-		////////////////////// KEYED NODES //////////////////////////
-		/////////////////////////////////////////////////////////////
-
-		// 1: Insert old keyed node
-		// {key: false, props: null : {key: 'keyName'} or
-		// {key: 'keyName2', props: {}} : {key: 'keyName'} 
-		// Current node is keyed and prev node props is null or prev node is keyed but is not in prev pool (has been used already )
-		// Insert old keyed node (move from old location and insert) - the prev dom node does not exist (empty vnode) or has been moved already
-
-		// 2: Remove previous node
-		// {key: false, props: {} : {key: 'keyName'} or
-		// {key: 'keyName2', props: {}} : {key: 'keyName'} 
-		// Current node is keyed and prev node is not or prev node is keyed but not present in new pool (not part of new UI)
-		// For optimal performace we remove the previous node until we hit the next keyed node
-
-		// 3: Swap keyed nodes
-		// {key: 'keyName2'} : {key: 'keyName'} 
-		// Current node and prev nodes are keyed and both exist in the new pool (both make up part of the UI)
-		// swap the prev node with the current one
-
-		var keyedNodesPrevPool = keyedNodesPrev[node.level || prevNode.level];
-
-		if (isDefined(keyedNodesPrevPool)) {
-			// Check If existing pool of keyed Nodes - else skip
-
-			var isOldNodePresentInPrevKeyedPool = void 0;
-			var isOldNodePresentInNewKeyedPool = void 0;
-			var keyedParentLevel = void 0;
-
-			if (isNotFalse(node.key) && prevNode.key !== node.key) {
-				// New node is keyed
-
-				// Check if old node is keyed too, or if it is, if it still exists in the old pool. IF it does not
-				// exist in the old pool then it has already been reused and deleted from the pool. 
-				isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
-				// If old node is keyed - check if is it needed in the next rendered UI
-				isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[node.level]) ? false : isDefined(keyedNodes[node.level][prevNode.key]);
-
-				// Keep track of the highest most keyed parent.
-				// Any children of this keyed element need to be stored against the
-				// keyedChildren prop on the vNode
-				//////////////////////////////////////////////////////////////////////////////
-
-				if (node.level <= keyedParentLevel) {
-					keyedParentLevel = undefined;
-				}
-
-				keyedParentLevel = isDefined(keyedParentLevel) ? keyedParentLevel : node.level;
-
-				////////////////////////////////////////////
-				////////////////////////////////////////////
-
-				// Try to retrieve current keyed node from prev keyed pool
-				var prevKeyedNode = keyedNodesPrevPool[node.key];
-
-				// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).
-				if (isDefined(prevKeyedNode)) {
-
-					var addKeyedChildrenToOldTree = function addKeyedChildrenToOldTree() {
-						if (prevKeyedNode.keyedChildren.length > 0) {
-							var childrenCount = 0;
-							while (isDefined(domNodesPrev[i + childrenCount + 1]) && domNodesPrev[i + childrenCount + 1].level > keyedParentLevel) {
-								childrenCount++;
-							}
-							domNodesPrev.splice.apply(domNodesPrev, [i + 1, childrenCount].concat(toConsumableArray(prevKeyedNode.keyedChildren)));
+			if (_i === domNodes.length - 1) {
+				var remaining = domNodesPrev.length - domNodes.length;
+				if (remaining > 0) {
+					for (var x = 1; x <= remaining; x++) {
+						if (domNodesPrev[domNodes.length].block) {
+							blockCache[domNodesPrev[domNodes.length].key] = false;
 						}
-					};
-
-					// 1: Insert old (recycled) keyed node
-					////////////////////////////////
-					if (isNull(prevNode.props) || isNotFalse(prevNode.key) && !isOldNodePresentInPrevKeyedPool) {
-						// prev node is empty or has already been used already so we can replace the vNode with 
-						// the prevKeyedNode vNode for comparison of attributes.
-						domNodesPrev[i] = prevKeyedNode;
-						node.keyedAction = 'insertOld'; // set action for use in patch function
-						// match all children of keyed parent node with their old vNodes counterparts
-						addKeyedChildrenToOldTree();
+						domNodes[domNodes.length] = emptyVNodeStatic;
+						breakLoop = true;
 					}
-					// 2: Remove previous node (keyed or non-keyed)
-					//////////////////////////////////////////////////////////
-					else if (isFalse(prevNode.key) || !isOldNodePresentInNewKeyedPool) {
-							domNodes.splice(i, 0, emptyVNodeStatic);
-							node = domNodes[i];
-						}
-						// 3: Swap keyed nodes
-						//////////////////////
-						else {
-								domNodesPrev[i] = prevKeyedNode;
-								node.keyedAction = 'swap';
-								// match all children of keyed parent node with their old vNodes counterparts
-								addKeyedChildrenToOldTree();
-							}
-					// once keyed node has been reused remove it from pool
-					delete keyedNodesPrevPool[node.key];
-
-					// Insert a new keyed node.
-					//////////////////////////
-				} else {
-					if (isNull(prevNode.props)) {
-						domNodesPrev[i] = emptyVNodeStatic;
-					} else {
-						domNodesPrev.splice(i, 0, emptyVNodeStatic);
-					}
-					node.keyedAction = 'insertNew';
 				}
 			}
 
-			//if keys match we still want to update any props that might have changed
-			else if (isNotFalse(node.key) && prevNode.key === node.key) {
-					node.keyedAction = 'updateAttrs';
-				}
+			prevNode = domNodesPrev[_i];
+			node = domNodes[_i];
 
-				// 1: Insert new unkeyed node
-				// {key: 'keyName'} : {key: false, props: {}}
-				// Prev is keyed and is present in the prevKeyed pool (hasnt been used yet) and is present in newPool (will be rendered in current UI)
-				// Action - splice empty node in prevNodesArray and change node.keyedAction to 'insertNew' 
-				// This will insert the node at the index of the current keyed node and push the perev keyed node down until it either reaches
-				// its match in the new nodes array or a diff element where another ection takes place
+			////////////////////// KEYED NODES //////////////////////////
+			/////////////////////////////////////////////////////////////
 
-				// 2: Ignore recycled key node
-				// {key: 'keyName'} : {key: false, props: {}}
-				// Prev is keyed and is NOT present in the prevKeyed pool (has already been used) and is present in newPool (has been been rendered in current UI)
-				// Prev node has been moved to another postion in the DOM already ie. has been 'recycled'
-				// Action - splice a new empty node into the current nodes array stating this
-				// Reconciler will ignore these nodes and decrement the dom child index
-				// synced nodes = {key: 'keyName'} : {key: 'keyName, keyedAction: 'recycled', props: null}
+			// 1: Insert old keyed node
+			// {key: false, props: null} : {key: 'keyName'} or
+			// {key: 'keyName2', props: {}} : {key: 'keyName'} 
+			// Current node is keyed and prev node props is null or prev node is keyed but is not in prev pool (has been used already )
+			// Insert old keyed node (move from old location and insert) - the prev dom node does not exist (empty vnode) or has been moved already
 
-				// 3: Replace old keyed node with unkeyed node
-				// {key: 'keyName'} : {key: false, props: {}}
-				// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
-				// Action - Prev keyed node can be removed as it doesn make up part of the UI anymore
-				// Make prev node key = false to trigger replace update
+			// 2: Remove previous node
+			// {key: false, props: {} : {key: 'keyName'} or
+			// {key: 'keyName2', props: {}} : {key: 'keyName'} 
+			// Current node is keyed and prev node is not or prev node is keyed but not present in new pool (not part of new UI)
+			// For optimal performance we remove the previous node until we hit the next keyed node
 
-				// 4: Remove old keyed node 
-				// {key: 'keyName'} : {key: false, props: null}
-				// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
-				// Action - remove prev keyed node from dom
+			// 3: Swap keyed nodes
+			// {key: 'keyName2'} : {key: 'keyName'} 
+			// Current node and prev nodes are keyed and both exist in the new pool (both make up part of the UI)
+			// swap the prev node with the current one
 
-				// 5: Recycle old keyed node 
-				// {key: 'keyName'} : {key: false, props: null}
-				// Prev is keyed and is present in newPool (will be rendered in current UI)
-				// Action - change node.keyedAction to 'recycle'
-				// Skip over this as the node will be used later on
+			var keyedNodesPrevPool = keyedNodesPrev[node.level || prevNode.level];
 
+			if (isDefined(keyedNodesPrevPool)) {
+				// Check If existing pool of keyed Nodes - else skip
 
-				else if (isNotFalse(prevNode.key) && prevNode.key !== node.key) {
-						// Old node is keyed
+				var isOldNodePresentInPrevKeyedPool = void 0;
+				var isOldNodePresentInNewKeyedPool = void 0;
+				var keyedParentLevel = void 0;
 
-						isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
-						isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[prevNode.level]) ? false : isDefined(keyedNodes[prevNode.level][prevNode.key]);
+				if (isNotFalse(node.key) && prevNode.key !== node.key) {
+					// New node is keyed
 
-						var removeKeyedChildrenFromOldTree = function removeKeyedChildrenFromOldTree() {
-							if (prevNode.keyedChildren.length > 0) {
+					// Check if old node is keyed too, or if it is, if it still exists in the old pool. IF it does not
+					// exist in the old pool then it has already been reused and deleted from the pool. 
+					isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
+					// If old node is keyed - check if is it needed in the next rendered UI
+					isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[node.level]) ? false : isDefined(keyedNodes[node.level][prevNode.key]);
+
+					// Keep track of the highest most keyed parent.
+					// Any children of this keyed element need to be stored against the
+					// keyedChildren prop on the vNode
+					//////////////////////////////////////////////////////////////////////////////
+
+					if (node.level <= keyedParentLevel) {
+						keyedParentLevel = undefined;
+					}
+
+					keyedParentLevel = isDefined(keyedParentLevel) ? keyedParentLevel : node.level;
+
+					////////////////////////////////////////////
+					////////////////////////////////////////////
+
+					// Try to retrieve current keyed node from prev keyed pool
+					var prevKeyedNode = keyedNodesPrevPool[node.key];
+
+					// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).          
+					if (isDefined(prevKeyedNode)) {
+
+						var addKeyedChildrenToOldTree = function addKeyedChildrenToOldTree() {
+							if (prevKeyedNode.keyedChildren.length > 0) {
 								var childrenCount = 0;
-								while (isDefined(domNodesPrev[i + childrenCount + 1]) && domNodesPrev[i + childrenCount + 1].level > prevNode.level) {
+								while (isDefined(domNodesPrev[_i + childrenCount + 1]) && domNodesPrev[_i + childrenCount + 1].level > keyedParentLevel) {
 									childrenCount++;
 								}
-								domNodesPrev.splice(i + 1, childrenCount);
+								domNodesPrev.splice.apply(domNodesPrev, [_i + 1, childrenCount].concat(toConsumableArray(prevKeyedNode.keyedChildren)));
 							}
 						};
 
-						if (isNotNull(node.props)) {
-							// 1: Insert New keyed/unkeyed node
-							/////////////////////////////
-							if (isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
-								domNodesPrev.splice(i, 0, emptyVNodeStatic);
-								node.keyedAction = 'insertNew';
-								removeKeyedChildrenFromOldTree();
-							}
-							// 2: Ignore recycled keyed node (has alreedy been used)
-							///////////////////////////////
-							else if (!isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
-									domNodes.splice(i, 0, recycledVNodeStatic);
-									removeKeyedChildrenFromOldTree();
-								}
-								// 3: Replace old keyed node with unkeyed node
-								//////////////////////////////////////////////
-								else if (!isOldNodePresentInNewKeyedPool) {
-										prevNode.key = false;
-										// no need to remove children of keyed node from tree as the nodeRemovedFlag 
-										// in 'CreateView' is being used to skip over these
-									}
-						} else {
-							// 4: Remove old keyed node 
-							///////////////////////////
-							if (!isOldNodePresentInNewKeyedPool) {
-								prevNode.key = false;
-								// no need to remove children of keyed node from tree as the nodeRemovedFlag 
-								// in 'CreateView' is being used to skip over these
-							}
-							// 5: Mark old keyed node as Recyclable
-							////////////////////////////
-							else {
-									domNodes[i] = recyclableVNodeStatic;
-									removeKeyedChildrenFromOldTree();
-								}
+						// 1: Insert old (recycled) keyed node
+						////////////////////////////////
+						if (isNull(prevNode.props) || isNotFalse(prevNode.key) && !isOldNodePresentInPrevKeyedPool) {
+							// prev node is empty or has already been used already so we can replace the vNode with 
+							// the prevKeyedNode vNode for comparison of attributes.
+							domNodesPrev[_i] = prevKeyedNode;
+							node.keyedAction = 'insertOld'; // set action for use in patch function
+							// match all children of keyed parent node with their old vNodes counterparts
+							addKeyedChildrenToOldTree();
 						}
+						// 2: Remove previous node (keyed or non-keyed)
+						//////////////////////////////////////////////////////////
+						else if (isFalse(prevNode.key) || !isOldNodePresentInNewKeyedPool) {
+								if (prevNode.block) {
+									blockCache[prevNode.key] = false;
+								}
+								domNodes.splice(_i, 0, emptyVNodeStatic);
+								node = domNodes[_i];
+							}
+							// 3: Swap keyed nodes
+							//////////////////////
+							else {
+									domNodesPrev[_i] = prevKeyedNode;
+									node.keyedAction = 'swap';
+									// match all children of keyed parent node with their old vNodes counterparts
+									addKeyedChildrenToOldTree();
+								}
+						// once keyed node has been reused remove it from pool
+						delete keyedNodesPrevPool[node.key];
+
+						// Insert a new keyed node.
+						//////////////////////////
+					} else {
+						if (isNull(prevNode.props)) {
+							domNodesPrev[_i] = emptyVNodeStatic;
+						} else {
+							domNodesPrev.splice(_i, 0, emptyVNodeStatic);
+						}
+						node.keyedAction = 'insertNew';
 					}
+				}
+
+				//if keys match we still want to update any props that might have changed
+				else if (isNotFalse(node.key) && prevNode.key === node.key) {
+						node.keyedAction = 'updateAttrs';
+					}
+
+					// 1: Insert new unkeyed node
+					// {key: 'keyName'} : {key: false, props: {}}
+					// Prev is keyed and is present in the prevKeyed pool (hasn't been used yet) and is present in newPool (will be rendered in current UI)
+					// Action - splice empty node in prevNodesArray and change node.keyedAction to 'insertNew' 
+					// This will insert the node at the index of the current keyed node and push the prev keyed node down until it either reaches
+					// its match in the new nodes array or a diff element where another action takes place
+
+					// 2: Ignore recycled key node
+					// {key: 'keyName'} : {key: false, props: {}}
+					// Prev is keyed and is NOT present in the prevKeyed pool (has already been used) and is present in newPool (has been been rendered in current UI)
+					// Prev node has been moved to another position in the DOM already ie. has been 'recycled'
+					// Action - splice a new empty node into the current nodes array stating this
+					// Reconciler will ignore these nodes and decrement the dom child index
+					// synced nodes = {key: 'keyName'} : {key: 'keyName, keyedAction: 'recycled', props: null}
+
+					// 3: Remove old keyed node
+					// {key: 'keyName'} : {key: false, props: {}}
+					// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
+					// Action - Prev keyed node can be removed as it doesn't make up part of the UI anymore
+					// Remove prev keyed node from dom
+
+					// 4: Remove old keyed node 
+					// {key: 'keyName'} : {key: false, props: null}
+					// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
+					// Action - remove prev keyed node from dom
+
+					// 5: Recycle old keyed node 
+					// {key: 'keyName'} : {key: false, props: null}
+					// Prev is keyed and is present in newPool (will be rendered in current UI)
+					// Action - change node.keyedAction to 'recycle'
+					// Skip over this as the node will be used later on
+
+
+					else if (isNotFalse(prevNode.key) && prevNode.key !== node.key) {
+							// Old node is keyed
+
+							isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
+							isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[prevNode.level]) ? false : isDefined(keyedNodes[prevNode.level][prevNode.key]);
+
+							var removeKeyedChildrenFromOldTree = function removeKeyedChildrenFromOldTree() {
+								if (prevNode.keyedChildren.length > 0) {
+									var childrenCount = 0;
+									while (isDefined(domNodesPrev[_i + childrenCount + 1]) && domNodesPrev[_i + childrenCount + 1].level > prevNode.level) {
+										childrenCount++;
+									}
+									domNodesPrev.splice(_i + 1, childrenCount);
+								}
+							};
+
+							if (isNotNull(node.props)) {
+								// 1: Insert New keyed/unkeyed node
+								/////////////////////////////
+								if (isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
+									domNodesPrev.splice(_i, 0, emptyVNodeStatic);
+									node.keyedAction = 'insertNew';
+									removeKeyedChildrenFromOldTree();
+								}
+								// 2: Ignore recycled keyed node (has already been used)
+								///////////////////////////////
+								else if (!isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
+										domNodes.splice(_i, 0, recycledVNodeStatic);
+										removeKeyedChildrenFromOldTree();
+									}
+									// 3: Remove old keyed node
+									//////////////////////////////////////////////
+									else if (!isOldNodePresentInNewKeyedPool) {
+											// no need to remove children of keyed node from tree as the nodeRemovedFlag 
+											// in 'CreateView' is being used to skip over these
+											if (prevNode.block) {
+												blockCache[prevNode.key] = false;
+											}
+
+											domNodes.splice(_i, 0, emptyVNodeStatic);
+											node = domNodes[_i];
+										}
+							} else {
+								// 4: Remove old keyed node 
+								///////////////////////////
+								if (!isOldNodePresentInNewKeyedPool) {
+									// no need to remove children of keyed node from tree as the nodeRemovedFlag 
+									// in 'CreateView' is being used to skip over these
+									if (prevNode.block) {
+										blockCache[prevNode.key] = false;
+									}
+									domNodes.splice(_i, 0, emptyVNodeStatic);
+									node = domNodes[_i];
+								}
+								// 5: Mark old keyed node as Recyclable
+								////////////////////////////
+								else {
+										domNodes[_i] = recyclableVNodeStatic;
+										removeKeyedChildrenFromOldTree();
+									}
+							}
+						}
+			}
+			// Ensure new keyed nodes are always inserted even when there is no pool of previously keyed nodes
+			else if (node.key) {
+					if (isNull(prevNode.props)) {
+						domNodesPrev[_i] = emptyVNodeStatic;
+					} else {
+						if (_i === domNodesPrev.length - 1) {
+							domNodes[domNodes.length] = emptyVNodeStatic;
+						}
+						domNodesPrev.splice(_i, 0, emptyVNodeStatic);
+					}
+					node.keyedAction = 'insertNew';
+				}
+
+			if (breakLoop && domNodes.length === domNodesPrev.length) return 'break';
+		};
+
+		for (var _i = 0; _i < domNodes.length; _i++) {
+			var _ret = _loop(_i);
+
+			if (_ret === 'break') break;
 		}
-
-		if (breakLoop && domNodes.length === domNodesPrev.length) return 'break';
-	};
-
-	for (var i = 0; i < domNodes.length; i++) {
-		var _ret = _loop(i);
-
-		if (_ret === 'break') break;
 	}
 
 	return {
@@ -1549,7 +1759,7 @@ var syncVNodes = function syncVNodes(domNodes, domNodesPrev, keyedNodes, keyedNo
 	};
 };
 
-var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextNode, oldNode, prevOldNode, nextOldNode, currentNodeLevel, nodesToSkip) {
+var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextNode, oldNode, prevOldNode, nextOldNode, currentNodeLevel) {
 
 	var previous = void 0;
 	var current = 'child';
@@ -1577,7 +1787,7 @@ var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextN
 		}
 	}
 
-	if (i < nodes.length - nodesToSkip - 1) {
+	if (i < nodes.length - 1) {
 		if (nextNodeLevel < currentNodeLevel) {
 			next = 'parent';
 		} else if (nextNodeLevel > currentNodeLevel) {
@@ -1588,17 +1798,14 @@ var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextN
 
 		if (isNull(nextNode.props)) {
 			actionNext = 'removed';
-		}
-		if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
+		} else if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
 			actionNext = 'add';
 		}
 	}
 
 	if (isNull(node.props)) {
 		action = 'removed';
-	}
-
-	if (isDefined(oldNode) && isNull(oldNode.props)) {
+	} else if (isDefined(oldNode) && isNull(oldNode.props)) {
 		action = 'add';
 	}
 
@@ -1613,12 +1820,13 @@ var getNodeRelations = function getNodeRelations(i, nodes, node, prevNode, nextN
 	};
 };
 
+var keyedNodeRecycleBin = {};
+var $_parentNodeStack = [];
+var childNodeIndexes = [];
 var nodeReplacedFlag = void 0;
 var nodeRemovedFlag = void 0;
 var handleUntrackedHtmlNodesFlag = void 0;
 var forceUpdateStartLevel = void 0;
-var keyedNodeRecycleBin = {};
-var $_parentNodeStack = [];
 var $_parentNode = void 0;
 var $_currentNode = void 0;
 var $_prevParentCache = void 0;
@@ -1629,12 +1837,10 @@ var nR = void 0;
 var nodeIsListeningToStateKey = void 0;
 var renderNode = void 0;
 var prevLevel = void 0;
-var nodesToSkip = void 0;
 var domOpsCount = void 0;
 var domOpsComplete = void 0;
 var syncedVNodes = void 0;
 var subscribesTo = void 0;
-var childNodeIndexes = [];
 
 var getDomIndex = function getDomIndex(currentLevel) {
 	return childNodeIndexes[currentLevel];
@@ -1680,6 +1886,23 @@ var updateProperties = function updateProperties(props, values, currentNode) {
 	}
 };
 
+var updateBlockProperties = function updateBlockProperties(renderNode) {
+	var keys = Object.keys(renderNode.values);
+	for (var i = 0; i < keys.length; i++) {
+		var key = keys[i];
+		var newProps = renderNode.values[key];
+
+		var _getChangedNodeProps = getChangedNodeProps(renderNode.props[key], newProps),
+		    props = _getChangedNodeProps.props,
+		    values = _getChangedNodeProps.values;
+
+		if (props.length > 0) {
+			domOpsCount++;
+			updateProperties(props, values, document.getElementById(newProps.id));
+		}
+	}
+};
+
 var patch = function patch() {
 
 	renderNode = shouldRenderNode(prevNode, node, nR, nodeReplacedFlag, nodeRemovedFlag, currentLevel, forceUpdateStartLevel);
@@ -1693,8 +1916,8 @@ var patch = function patch() {
 
 		if (handleUntrackedHtmlNodesFlag) {
 			// Increase the child node index by 1 as all untracked nodes created by using
-			// innerHTML prop will be wrapped in a sandbox div to prevent breaking the 
-			// vdom -> real dom comparison
+			// innerHTML prop will be wrapped in a containing element to prevent breaking the 
+			// vdom -> real dom relation
 			childNodeIndexes[currentLevel]++;
 		}
 
@@ -1722,7 +1945,7 @@ var patch = function patch() {
 				{
 					$_currentNode = createDomElement(node);
 					node.dom = $_currentNode;
-					replaceNode($_parentNode, $_currentNode, prevNode.dom, currentLevel);
+					replaceNode($_parentNode, $_currentNode, prevNode.dom);
 					nodeReplacedFlag = true;
 					forceUpdateStartLevel = currentLevel;
 					domOpsCount++;
@@ -1755,28 +1978,48 @@ var patch = function patch() {
 
 			case 'handleKeyedUpdate':
 				{
+
 					var currentDomNode = $_parentNode.children[getDomIndex(currentLevel)];
 					var recycledDomNode = prevNode.dom;
 					var keyedAction = renderNode.keyedAction;
 					$_currentNode = recycledDomNode;
 
-					if (keyedAction === 'insertNew') {
+					if (keyedAction === 'runBlockUpdates') {
+						if (isNotNull(renderNode.props)) {
+							updateBlockProperties(renderNode);
+						}
+					} else if (keyedAction === 'insertNew') {
 						$_currentNode = createDomElement(node);
+						if (node.block) {
+							$_currentNode.appendChild(createFragment(node.block));
+						}
 						$_parentNode.insertBefore($_currentNode, currentDomNode);
 						domOpsCount++;
 					} else if (keyedAction === 'insertOld') {
 						$_parentNode.insertBefore(recycledDomNode, currentDomNode);
 						keyedNodeRecycleBin[node.key] = true;
 						domOpsCount++;
-						if (renderNode.props.length > 0) {
-							updateProperties(renderNode.props, renderNode.values, $_currentNode);
+						if (!node.block) {
+							if (renderNode.props.length > 0) {
+								updateProperties(renderNode.props, renderNode.values, $_currentNode);
+							}
+						} else {
+							if (isNotNull(renderNode.props)) {
+								updateBlockProperties(renderNode);
+							}
 						}
 					} else if (keyedAction === 'swap' || isDefined(currentDomNode) && !currentDomNode.isEqualNode(recycledDomNode)) {
 						swapElements($_parentNode, currentDomNode, recycledDomNode);
 						keyedNodeRecycleBin[node.key] = true;
 						domOpsCount++;
-						if (renderNode.props.length > 0) {
-							updateProperties(renderNode.props, renderNode.values, $_currentNode);
+						if (!node.block) {
+							if (renderNode.props.length > 0) {
+								updateProperties(renderNode.props, renderNode.values, $_currentNode);
+							}
+						} else {
+							if (isNotNull(renderNode.props)) {
+								updateBlockProperties(renderNode);
+							}
 						}
 					} else if (keyedAction === 'updateAttrs' && renderNode.props.length > 0) {
 						updateProperties(renderNode.props, renderNode.values, $_currentNode);
@@ -1802,7 +2045,7 @@ var patch = function patch() {
 	}
 };
 
-var createView = function createView(appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev) {
+var createView = function createView(appContainer, domNodes, domNodesPrev, changedStateKeys, keyedNodes, keyedNodesPrev, isHydrating, blockCache) {
 
 	nodeReplacedFlag = false;
 	nodeRemovedFlag = false;
@@ -1818,19 +2061,18 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 	nodeIsListeningToStateKey = false;
 	renderNode = undefined;
 	prevLevel = 0;
-	nodesToSkip = 0;
 	domOpsCount = 0;
 	domOpsComplete = false;
 	syncedVNodes = undefined;
 	subscribesTo = null;
 
-	//rest obj and arrays for reuse
+	//reset obj and arrays for reuse
 	clearObject(keyedNodeRecycleBin);
 	$_parentNodeStack.length = 0;
 	childNodeIndexes.length = 0;
 
 	if (virtualDom.isInitialized() && virtualDom.requiresSync()) {
-		syncedVNodes = syncVNodes(domNodes.slice(0), domNodesPrev, keyedNodes, keyedNodesPrev);
+		syncedVNodes = syncVNodes(domNodes.slice(0), domNodesPrev, keyedNodes, keyedNodesPrev, blockCache);
 		domNodes = syncedVNodes.domNodes;
 		domNodesPrev = syncedVNodes.domNodesPrev;
 	}
@@ -1841,22 +2083,13 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 
 		if (!domOpsComplete) {
 
-			if (nodesToSkip > 0) {
-				i = i + nodesToSkip;
-				nodesToSkip = 0;
-			}
-
 			node = domNodes[i];
 			prevNode = domNodesPrev[i];
 
 			if (isUndefined(node)) break;
 
-			if (virtualDom.isInitialized() && node.staticChildren && node.keyedAction !== 'insertNew' && isNotNull(node.keyedAction) && isDefined(prevNode) && isNotNull(prevNode.props)) {
-				nodesToSkip = node.keyedChildren.length;
-			}
-
 			currentLevel = node.level || prevNode.level;
-			nR = getNodeRelations(i, domNodes, node, domNodes[i - 1], domNodes[i + nodesToSkip + 1], prevNode, domNodesPrev[i - 1], domNodesPrev[i + nodesToSkip + 1], currentLevel, nodesToSkip);
+			nR = getNodeRelations(i, domNodes, node, domNodes[i - 1], domNodes[i + 1], prevNode, domNodesPrev[i - 1], domNodesPrev[i + 1], currentLevel);
 			updateChildNodeFauxDomIndexes(nR, currentLevel);
 
 			if (i !== 0) {
@@ -1872,14 +2105,23 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 			}
 
 			// Mount //
-			// Render all nodes on intial page load
-			////////////////////////////////////////2
-			if (!virtualDom.isInitialized()) {
+			// Render all nodes on initial page load
+			////////////////////////////////////////
+			if (!virtualDom.isInitialized() && !isHydrating) {
 
 				$_currentNode = createDomElement(node);
 				$_parentNode.appendChild($_currentNode);
 				node.dom = $_currentNode;
+
+				if (node.block) {
+					$_currentNode.appendChild(createFragment(node.block));
+				}
 			} else {
+
+				if (isHydrating) {
+					// add dom node ref to prev vnodes dom property
+					prevNode.dom = $_parentNode.children[getDomIndex(currentLevel)];
+				}
 
 				// Reconcile DOM after state updates //
 				//////////////////////////////////////////
@@ -1919,7 +2161,7 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 					node.dom = prevNode.dom;
 					$_currentNode = node.dom;
 				} else {
-					// not listening to current state change but needs to rerenderd for sum reason eg. parent node was replaced
+					// not listening to current state change but needs to re-rendered for sum reason eg. parent node was replaced
 					patch();
 				}
 			}
@@ -1942,36 +2184,154 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 	}
 };
 
+var createString = function createString(vDomNodes) {
+
+	var htmlString = '';
+	var node = void 0;
+	var nextNode = void 0;
+	var closingTagStack = [];
+
+	for (var i = 0, len = vDomNodes.length; i < len; i++) {
+		node = vDomNodes[i];
+		nextNode = vDomNodes[i + 1];
+
+		// open tag
+		htmlString += '<' + node.type;
+
+		// add props
+		var propKeys = void 0;
+
+		// remove test and event handlers from pros obj
+		propKeys = Object.keys(node.props).filter(function (value) {
+			return value !== 'text' && value[0] != 'o' && value[1] != 'n';
+		});
+
+		propKeys.forEach(function (key) {
+
+			if (key === 'style') {
+				htmlString += ' style="';
+				var styleKeys = Object.keys(node.props.style);
+				styleKeys.forEach(function (key, idx) {
+					htmlString += key + ':' + node.props.style[key] + ';';
+					if (idx !== styleKeys.length - 1) {
+						htmlString += ' ';
+					}
+				});
+				htmlString += '"';
+			} else if (Array.isArray(node.props[key])) {
+				if (key === 'data') {
+					node.props.data.forEach(function (dataAttr) {
+						htmlString += ' ' + 'data-' + dataAttr;
+					});
+				} else if (key === 'class') {
+					node.props.class.forEach(function (className) {
+						htmlString += ' ' + className;
+					});
+				}
+			} else {
+				htmlString += ' ' + key + '="' + node.props[key] + '"';
+			}
+		});
+
+		// close tag
+		if (voidedElements[node.type]) {
+			htmlString += '/>';
+		} else {
+			closingTagStack.push(node.type);
+			htmlString += '>';
+
+			// add text and inner html
+			if (node.props.text) {
+				htmlString += node.props.text;
+			}
+
+			if (node.props.innerHTML) {
+				htmlString += node.props.innerHTML;
+			}
+
+			if (nextNode) {
+				if (nextNode.level === node.level) {
+					htmlString += '</' + closingTagStack.pop() + '>';
+				} else if (nextNode.level < node.level) {
+					var retrace = node.level - nextNode.level;
+					for (var x = 0; x <= retrace; x++) {
+						htmlString += '</' + closingTagStack.pop() + '>';
+					}
+				}
+			} else {
+				var remaining = closingTagStack.length;
+				for (var _x = 0; _x < remaining; _x++) {
+					htmlString += '</' + closingTagStack.pop() + '>';
+				}
+			}
+		}
+	}
+
+	return htmlString;
+};
+
 var vdomNodeBuilder = void 0;
 var vDomNodesArrayPrevious = [];
 
-var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, lastFirstRender, appId, sequenceCache) {
+var renderString = function renderString(appView, runTime, appGlobalActions, appId, asyncResolve) {
+
+	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
+	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
+	var nodeBuilderInstance = vdomNodeBuilder[appId];
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() }, 'toString');
+
+	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
+		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
+	} else if (!asyncResolve) {
+		return createString(nodeBuilderInstance.getVDomNodesArray());
+	} else {
+		nodeBuilderInstance.resetVDomNodesArray();
+	}
+};
+
+var hydrateApp = function hydrateApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, appId, sequenceCache) {
+
+	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
+	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
+	var nodeBuilderInstance = vdomNodeBuilder[appId];
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() }, 'creatingHydrationLayer');
+
+	if (nodeBuilderInstance.getLazyCount() !== 0) {
+		nodeBuilderInstance.resetVDomNodesArray();
+	} else {
+		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
+
+		renderApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, appId, sequenceCache, true);
+	}
+};
+
+var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, appId, sequenceCache, isHydrating) {
 
 	var nodeBuilderInstance = void 0;
 
-	if (!firstRender) {
+	if (!firstRender || isHydrating) {
 		nodeBuilderInstance = vdomNodeBuilder[appId];
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 		nodeBuilderInstance.resetVDomNodesArray();
 	} else {
 		vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions, changedStateKeys);
+		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions);
 		nodeBuilderInstance = vdomNodeBuilder[appId];
+		virtualDom.setInitialized(false);
+		virtualDom.setSync(false);
 	}
 
 	nodeBuilderInstance.setKeyedNodesPrev();
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() });
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() }, 'toDom');
 
-	createView(appContainer, nodeBuilderInstance.getVDomNodesArray(), vDomNodesArrayPrevious, changedStateKeys, nodeBuilderInstance.getKeyedNodes(), nodeBuilderInstance.getKeyedNodesPrev(), appId);
+	createView(appContainer, nodeBuilderInstance.getVDomNodesArray(), vDomNodesArrayPrevious, changedStateKeys, nodeBuilderInstance.getKeyedNodes(), nodeBuilderInstance.getKeyedNodesPrev(), isHydrating, nodeBuilderInstance.getBlockCache());
 
-	if (!firstRender) {
+	if (!firstRender && !isHydrating) {
 		runTime.exeQueuedMsgs(undefined, sequenceId, undefined, sequenceCache);
 	} else {
 		if (isFunction(appOnInit)) appOnInit(appGlobalActions);
-		if (lastFirstRender) {
-			virtualDom.setInitialized(true);
-			virtualDom.setSync(true);
-		}
+		virtualDom.setInitialized(true);
+		virtualDom.setSync(true);
 	}
 };
 
@@ -1979,53 +2339,107 @@ var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActi
 
 var karbon = function () {
 	return {
-		run: function run() {
 
-			this.runTime = {};
-			this.appRootComponent = {};
-			this.appRootActions = {};
-			this.appContainer = {};
-			this.appView = {};
-			this.appGlobalActions = {};
-			this.appRootSubscribe = {};
-			this.appSubs = {};
-			this.appFx = {};
-			this.appOnInit = {};
+		runTime: {},
+		appRootComponent: {},
+		appRootActions: {},
+		appContainer: {},
+		appView: {},
+		appGlobalActions: {},
+		appRootSubscribe: {},
+		appSubs: {},
+		appFx: {},
+		appOnInit: {},
+		renderToString: {},
+		toStringAsyncResolve: {},
+		process: {},
+		appCounter: 0,
+		/* START.DEV_ONLY */
+		appTap: {},
+		/* END.DEV_ONLY */
+
+		render: function render(appConfig) {
+			this.init(appConfig, false, 'render');
+		},
+		hydrate: function hydrate(appConfig) {
+			this.init(appConfig, false, 'hydrate');
+		},
+		toString: function toString(appConfig) {
+			return this.init(appConfig, true, 'string');
+		},
+		toStringAsync: function toStringAsync(appConfig) {
+			var _this = this;
+
+			return new Promise(function (resolveOuter) {
+				_this.toStringAsyncPromise = new Promise(function (resolveInner) {
+					_this.init(appConfig, true, 'toStringAsync', resolveInner);
+				});
+				_this.toStringAsyncPromise.then(function (htmlString) {
+					resolveOuter(htmlString);
+				});
+			});
+		},
+		init: function init(appConfigObj, renderToString, process, asyncStringResolve) {
+
+			this.appCounter++;
+
+			var appId = this.appCounter;
+
+			this.renderToString[appId] = renderToString;
+			this.toStringAsyncResolve[appId] = asyncStringResolve;
+			this.process[appId] = process;
+			this.appContainer[appId] = isBrowser() ? appConfigObj.container(document) : null;
+
 			/* START.DEV_ONLY */
-			this.appTap = {};
+			if (isBrowser() && isNull(this.appContainer[appId])) {
+				console.error('App container node does not exist');
+				return false;
+			}
 			/* END.DEV_ONLY */
 
-			for (var _len = arguments.length, appConfig = Array(_len), _key = 0; _key < _len; _key++) {
-				appConfig[_key] = arguments[_key];
-			}
+			this.appFx[appId] = appConfigObj.effects;
+			this.appSubs[appId] = appConfigObj.subscriptions;
+			/* START.DEV_ONLY */
+			this.appTap[appId] = appConfigObj.tap || {};
+			/* END.DEV_ONLY */
+			this.runTime[appId] = createRunTime(this, appId);
+			this.runTime[appId].setState(appConfigObj.state);
+			this.appView[appId] = appConfigObj.view;
+			this.appGlobalActions[appId] = this.initGlobalActions(appConfigObj.actions, this.runTime[appId]);
+			this.appOnInit[appId] = appConfigObj.init;
 
-			for (var i = 0; i < appConfig.length; i++) {
-
-				var appConfigObj = appConfig[i];
-				var appId = i;
-				var lastFirstRender = i === appConfig.length - 1;
-				appConfigObj.container.innerHTML = '';
-				this.appContainer[appId] = appConfigObj.container;
-				this.appFx[appId] = appConfigObj.effects;
-				this.appSubs[appId] = appConfigObj.subscriptions;
-				/* START.DEV_ONLY */
-				this.appTap[appId] = appConfigObj.tap || {};
-				/* END.DEV_ONLY */
-				this.runTime[appId] = createRunTime(this, appId);
-				this.runTime[appId].setState(appConfigObj.state);
-				this.appView[appId] = appConfigObj.view;
-				this.appGlobalActions[appId] = this.initGlobalActions(appConfigObj.actions, this.runTime[appId]);
-				this.appOnInit[appId] = appConfigObj.init;
+			if (isBrowser()) {
 				this.runHandleSubs(appId);
-
-				/* START.DEV_ONLY */
-				if (isDefined(this.appTap[appId].state)) {
-					this.appTap[appId].state({ prevState: null, newState: appConfigObj.state, sequenceId: null });
-				}
-				/* END.DEV_ONLY */
-
-				renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], undefined, undefined, true, lastFirstRender, appId);
 			}
+
+			/* START.DEV_ONLY */
+			if (isDefined(this.appTap[appId].state)) {
+				this.appTap[appId].state({ prevState: null, newState: appConfigObj.state, sequenceId: null });
+			}
+			/* END.DEV_ONLY */
+
+			if (renderToString) {
+
+				return renderString(this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], appId, this.toStringAsyncResolve[appId]);
+			} else if (this.process[appId] === 'hydrate') {
+
+				// hydration only happens once - update 'process' to ensure dom is rendered on future state changes
+				this.process[appId] = 'render';
+
+				hydrateApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], undefined, //	changedStateKeys
+				undefined, //sequenceId
+				true, // firstRender
+				appId);
+			} else {
+
+				this.appContainer[appId].innerHTML = '';
+
+				renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], undefined, //	changedStateKeys
+				undefined, //sequenceId
+				true, // firstRender
+				appId);
+			}
+			// }
 		},
 		initGlobalActions: function initGlobalActions(actions, runTime) {
 
@@ -2146,19 +2560,47 @@ var karbon = function () {
 				this.handleSubs(this.appSubs[appId](this.runTime[appId].getState(), this.appGlobalActions[appId]), appId);
 			}
 		},
-		reRender: function reRender(changedStateKeys, sequenceId, appId, sequenceCache) {
+		reRender: function reRender(changedStateKeys, sequenceId, appId, sequenceCache, creatingHydrationLayer) {
 
-			renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], undefined, changedStateKeys, sequenceId, false, undefined, appId, sequenceCache);
+			if (creatingHydrationLayer) {
+				hydrateApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], undefined, //	changedStateKeys
+				undefined, // sequenceId
+				true, // firstRender
+				appId);
+			} else if (this.process[appId] === 'render') {
+				renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], undefined, //onInit
+				changedStateKeys, sequenceId, false, // firstRender
+				appId, sequenceCache);
+			} else if (this.renderToString[appId] && this.process[appId] === 'toStringAsync') {
+				renderString(this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], appId, this.toStringAsyncResolve[appId]);
+			}
 		}
 	};
 }();
 
-var run = void 0;
-if (document.currentScript && "noModule" in document.currentScript) {
-    run = karbon.run.bind(karbon);
+var render = void 0;
+var hydrate = void 0;
+var toString = void 0;
+var toStringAsync = void 0;
+
+if (isBrowser()) {
+	if (document.currentScript && 'noModule' in document.currentScript) {
+		render = karbon.render.bind(karbon);
+		hydrate = karbon.hydrate.bind(karbon);
+		toString = karbon.toString.bind(karbon);
+		toStringAsync = karbon.toStringAsync.bind(karbon);
+	} else {
+		window.karbon = {};
+		window.karbon.render = karbon.render.bind(karbon);
+		window.karbon.hydrate = karbon.hydrate.bind(karbon);
+		window.karbon.toString = karbon.toString.bind(karbon);
+		window.karbon.toStringAsync = karbon.toStringAsync.bind(karbon);
+	}
 } else {
-    window.karbon = {};
-    window.karbon.run = karbon.run.bind(karbon);
+	render = karbon.render.bind(karbon);
+	hydrate = karbon.hydrate.bind(karbon);
+	toString = karbon.toString.bind(karbon);
+	toStringAsync = karbon.toStringAsync.bind(karbon);
 }
 
-export { run };
+export { render, hydrate, toString, toStringAsync };

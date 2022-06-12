@@ -14,7 +14,6 @@ const configs = {
 			sourceMap: 'inline',
 		},
 		plugins: [
-			
 			eslint({
 				exclude: 'src/styles/**'
 			}),

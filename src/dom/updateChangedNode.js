@@ -1,9 +1,8 @@
 import { isEmpty, isNotEmpty, isString, isArray, isDefined, isUndefined } from '../utils/utils';
 
-let firstChildNode; 
-
 export const updateChangedNode = (prop, value, node) => {
 
+	// console.log(prop, value, node)
 	switch (prop) {
 
 	case 'class': {
@@ -34,7 +33,7 @@ export const updateChangedNode = (prop, value, node) => {
 	}
 	case 'text':
 		if (node.hasChildNodes()) {
-			firstChildNode = node.firstChild;
+			let firstChildNode = node.firstChild;
 			if (isDefined(firstChildNode.data)) {
 				firstChildNode.data = value;
 			} else {
@@ -46,8 +45,8 @@ export const updateChangedNode = (prop, value, node) => {
 			node.textContent = value;
 		}
 		break;
-	case 'dataAttrs':
-		// remove al data attrs
+	case 'data':
+		// remove all data attrs
 		for (let i = 0; i < node.attributes.length; i++) {
 			if (/^data-/i.test(node.attributes[i].name)) {
 				node.removeAttribute(node.attributes[i].name);
@@ -65,7 +64,11 @@ export const updateChangedNode = (prop, value, node) => {
 			if (isString(value)) {
 				node[prop] = null;
 			} else {
-				node[prop] = event => value[0].apply(null, [...value.slice(1), event]);
+				if (isArray(value)) {
+					node[prop] = event => value[0].apply(null, [...value.slice(1), event]);
+				} else {
+					node[prop] = event => value.apply(null, [event]);
+				}
 			}
 		}
 		else if (isUndefined(node[prop]) || node instanceof SVGElement) {

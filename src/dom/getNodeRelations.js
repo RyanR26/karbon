@@ -1,6 +1,16 @@
 import { isUndefined, isDefined, isNull, isNotNull } from '../utils/utils';
 
-export const getNodeRelations = (i, nodes, node, prevNode, nextNode, oldNode, prevOldNode, nextOldNode, currentNodeLevel, nodesToSkip) => {
+export const getNodeRelations = (
+	i, 
+	nodes, 
+	node, 
+	prevNode, 
+	nextNode, 
+	oldNode, 
+	prevOldNode, 
+	nextOldNode, 
+	currentNodeLevel
+) => {
 	
 	let previous;
 	let current = 'child';
@@ -12,10 +22,10 @@ export const getNodeRelations = (i, nodes, node, prevNode, nextNode, oldNode, pr
 	const nextNodeLevel = isUndefined(nextNode) ? undefined : isNotNull(nextNode.props) ? nextNode.level : nextOldNode.level;
 
 	if (i > 0) {
-		if(previousNodeLevel < currentNodeLevel) {
+		if (previousNodeLevel < currentNodeLevel) {
 			previous = 'parent';
 			current = 'child';
-		} else if(previousNodeLevel > currentNodeLevel) {
+		} else if (previousNodeLevel > currentNodeLevel) {
 			previous = 'child';
 			current = 'parent';
 		} else {
@@ -28,7 +38,7 @@ export const getNodeRelations = (i, nodes, node, prevNode, nextNode, oldNode, pr
 		}
 	}
 
-	if (i < (nodes.length - nodesToSkip) - 1) {
+	if (i < (nodes.length - 1)) {
 		if (nextNodeLevel < currentNodeLevel) {
 			next = 'parent';
 		} else if (nextNodeLevel > currentNodeLevel) {
@@ -40,8 +50,7 @@ export const getNodeRelations = (i, nodes, node, prevNode, nextNode, oldNode, pr
 		if (isNull(nextNode.props)) {
 			actionNext = 'removed';
 		}
-    
-		if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
+		else if (isDefined(nextOldNode) && isNull(nextOldNode.props)) {
 			actionNext = 'add';
 		}
 	}
@@ -49,8 +58,7 @@ export const getNodeRelations = (i, nodes, node, prevNode, nextNode, oldNode, pr
 	if (isNull(node.props)) {
 		action = 'removed';
 	}
-	
-	if (isDefined(oldNode) && isNull(oldNode.props)) {
+	else if (isDefined(oldNode) && isNull(oldNode.props)) {
 		action = 'add';
 	}
 

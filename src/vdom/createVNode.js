@@ -1,17 +1,26 @@
 import { isNull } from '../utils/utils';
 
-let elProps; 
-
-export const createVNode = (type, parentComponentIndex, data, level, key=false, staticChildren, parentComponent, subscribesTo, renderingSvg) => {
+export const createVNode = (
+	type, 
+	parentComponentIndex, 
+	data, 
+	level, 
+	key=false, 
+	staticChildren, 
+	parentComponent, 
+	subscribesTo, 
+	renderingSvg,
+	block,
+	blockProps
+) => {
 
 	const props = {}; 
-
-	elProps = Object.keys(data);
+	const elProps = Object.keys(data);
 
 	for (let i = 0; i < elProps.length; i++) {
 		const prop = elProps[i];	
 		const value = data[prop];
-		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value: `<span data="untracked-nodes">${value}</span>`;
+		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : block ? value : `<span data="dangerously-set-innerHTML">${value}</span>`;
 	}
 
 	return {
@@ -26,7 +35,9 @@ export const createVNode = (type, parentComponentIndex, data, level, key=false, 
 		parentComponent,
 		parentComponentIndex,
 		subscribesTo,
-		dom: null
+		dom: null,
+		block,
+		blockProps
 	};
 };
 

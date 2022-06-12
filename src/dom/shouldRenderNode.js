@@ -1,16 +1,5 @@
-import { isDefined, isNull, isNotNull, isObject, isArray, objsAreEqual, arraysAreEqual } from '../utils/utils';
-
-const props = [];
-const values = [];
-let newPropsKeys;
-let prevPropsKeys;
-let prevProps;
-let newProps;
-let notChanged;
-let untrackedHtmlNodes;
-let handleKeyedNode;
-let overrideDefaultAction;
-let forceReplace;
+import { isDefined, isUndefined, isNull, isNotNull, objsAreEqual } from '../utils/utils';
+import { getChangedNodeProps } from '../dom/getChangedNodeProps';
 
 const statefulElements = {
 	radio: true
@@ -26,7 +15,14 @@ const renderObj = {
 };
 
 // set props on cached obj. Obj reuse instead of creating new obj. Memory management.
-const updateRenderObj = (should, action='none', keyedAction=null, props=null, values=null) => {
+const updateRenderObj = (
+	should, 
+	action='none', 
+	keyedAction=null, 
+	props=null, 
+	values=null, 
+	untrackedHtmlNodes=false
+) => {
 	renderObj.should = should;
 	renderObj.action = action;
 	renderObj.keyedAction = keyedAction;
@@ -35,18 +31,35 @@ const updateRenderObj = (should, action='none', keyedAction=null, props=null, va
 	renderObj.values = values;
 };
 
+export const shouldRenderNode = (
+	objPrev, 
+	objNew, 
+	nR, 
+	nodeReplacedFlag, 
+	nodeRemovedFlag, 
+	currentLevel, 
+	forceUpdateStartLevel
+) => {
 
-export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemovedFlag, currentLevel, forceUpdateStartLevel) => {
+	if (objPrev.block && objNew.block) {
+		if (isNull(objNew.keyedAction) && (isUndefined(objNew.blockProps) || objsAreEqual(objPrev.blockProps, objNew.blockProps))) {
+			return false;
+		} else {
+			if(objNew.keyedAction === 'insertOld' || objNew.keyedAction === 'swap' ) {
+				updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, objPrev.blockProps, objNew.blockProps, true);
+			} else {
+				updateRenderObj(true, 'handleKeyedUpdate', 'runBlockUpdates', objPrev.blockProps, objNew.blockProps, true);
+			}
+			return renderObj;
+		}
+	}
 
-	prevProps = objPrev.props;
-	newProps = objNew.props;
-	notChanged = true;
-	untrackedHtmlNodes = false;
-	handleKeyedNode = false;
-	forceReplace = false;
-	//reset arrays
-	props.length = 0;
-	values.length = 0;
+	const prevProps = objPrev.props;
+	const newProps = objNew.props;
+	let notChanged = true;
+	let untrackedHtmlNodes = false;
+	let handleKeyedNode = false;
+	let forceReplace = false;
 
 	if (objNew.type !== objPrev.type || isNull(prevProps) || isNull(newProps) || isNotNull(objNew.keyedAction)) {
 		notChanged = false;
@@ -54,7 +67,7 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		notChanged = objsAreEqual(prevProps, newProps);
 	}
 
-	overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && (currentLevel > forceUpdateStartLevel);
+	const overrideDefaultAction = (nodeReplacedFlag || nodeRemovedFlag) && (currentLevel > forceUpdateStartLevel);
 
 	if (overrideDefaultAction) {
 
@@ -71,7 +84,11 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		// which were removed when parent was replaced. This override continues for as long
 		// as the node being added is a child of the parent which was replaced.
 		else {
-			updateRenderObj(true, 'newNode');
+			if (objNew.keyedAction === 'insertNew') {
+				updateRenderObj(true, 'handleKeyedUpdate', 'insertNew');
+			} else {
+				updateRenderObj(true, 'newNode');
+			}
 			return renderObj;
 		}
 	}
@@ -103,67 +120,15 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 		// because innerHTML will cause 'untracked' DOM nodes to be added we need to trigger
 		// a replacement of the node
 		if ((objNew.type !== objPrev.type || untrackedHtmlNodes || forceReplace) && !handleKeyedNode) {
-			updateRenderObj(true, 'replaceNode');
+			updateRenderObj(true, 'replaceNode', undefined, undefined, undefined, untrackedHtmlNodes);
 			return renderObj;
 		}
 
 		//// update node props //
-		// create array of keys, values to be updates //
+		// create array of keys, values to be updated //
 		// ////////////////////////////////////////////
 
-		// created arrays once and reuse. reduce GC
-		// reset cached created array
-		newPropsKeys = Object.keys(newProps);
-		prevPropsKeys = Object.keys(prevProps);
-
-		let key;
-		let value;
-
-		for (let i = 0; i < newPropsKeys.length; i++) {
-
-			key = newPropsKeys[i];
-			value = newProps[key];
-
-			if (isDefined(prevProps[key])) {
-				if (isArray(value)) {
-					if (!arraysAreEqual(value, prevProps[key])) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				} else if (isObject(value)) {
-					if (!objsAreEqual(value, prevProps[key])) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				} else {
-					if (value !== prevProps[key]) {
-						props[props.length] = key;
-						values[values.length] = value;
-					}
-				}
-			} else {
-				// add new props
-				props[props.length] = key;
-				values[values.length] = value;
-			}
-		}
-
-		// loop over old props to see if there are any that the new node does not have
-		// if so set value to empty to remove
-		for (let i = 0; i < prevPropsKeys.length; i++) {
-			const oldProp = prevPropsKeys[i];
-			if (newPropsKeys.indexOf(oldProp) === -1) {
-				// insert this at the beginning as clearing innerHTML will
-				// strip out any text nodes that are set before
-				if (oldProp !== 'innerHTML') {
-					props[props.length] = oldProp;
-					values[values.length] = oldProp === 'class' || oldProp === 'dataAttrs' ? [] : '';
-				} else {
-					props.unshift(oldProp);
-					values.unshift('');
-				}
-			}
-		}
+		const { props, values } = getChangedNodeProps(prevProps, newProps);
 
 		if (handleKeyedNode) {
 			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, props, values);
@@ -183,9 +148,9 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 			untrackedHtmlNodes = true;
 		}
 		if (objNew.keyedAction === 'insertNew') {
-			updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction);
+			updateRenderObj(true, 'handleKeyedUpdate', 'insertNew', undefined, undefined, untrackedHtmlNodes);
 		} else {
-			updateRenderObj(true, 'newNode', objPrev.keyedAction);
+			updateRenderObj(true, 'newNode', objPrev.keyedAction, undefined, undefined, untrackedHtmlNodes);
 		}
 
 		return renderObj;
@@ -196,10 +161,10 @@ export const shouldRenderNode = (objPrev, objNew, nR, nodeReplacedFlag, nodeRemo
 	else if (isNotNull(prevProps) && isNull(newProps)) {
 
 		if (objNew.keyedAction === 'recycled') {
-			return objNew.keyedAction;
+			return 'recycled';
 		}
 		else if (objNew.keyedAction === 'recyclable') {
-			updateRenderObj(true, objNew.keyedAction);
+			updateRenderObj(true, 'recyclable');
 			return renderObj;
 		}
 		else {

@@ -38,6 +38,8 @@ export const getLastItemsFromArr = (arr, noOfItems) => arr[arr.length - noOfItem
 
 export const randomStringId = () => Math.random().toString(36).replace(/[^a-z]+/g, '').substr(2, 10);
 
+export const isBrowser = () => typeof window === 'object';
+
 export const clearObject = obj => {
 	for (let prop in obj) {
 		delete obj[prop];
@@ -45,10 +47,8 @@ export const clearObject = obj => {
 };
 
 export const arraysAreEqual = (arr1, arr2) => {
-	const arr1Length = arr1.length;
-	const arr2Length = arr2.length;
-	if (arr1Length !== arr2Length) return false;
-	for (let i = 0; i < arr1Length; i++) {
+	if (arr1.length !== arr2.length) return false;
+	for (let i = 0; i < arr1.length; i++) {
 		if (arr1[i] !== arr2[i]) return false;
 	}
 	return true;
@@ -105,15 +105,25 @@ export const checkPropTypes = (props, propTypes, componentName) => {
 
 	if (isDefined(propTypes)) {
 		for (let key in propTypes) {
+      
+			let success = false;
+			let failedKey;
+			let failedValue;
 			let value = propTypes[key];
-			if (value === 'array') {
-				if (!isArray(props[key])) {
-					propTypeFailed(key, value, componentName);
+
+			if (!isArray(value)) value = [value];
+
+			for (let i=0; i<value.length; i++) {
+				const val = value[i];
+				if ((val === 'array' && isArray(props[key])) || val === typeof (props[key])) {
+					success = true;
+				} else {
+					failedKey = key;
+					failedValue = value;
 				}
 			}
-			else if (value !== typeof (props[key])) {
-				propTypeFailed(key, value, componentName);
-			}
+ 
+			if (!success) propTypeFailed(failedKey, failedValue, componentName);
 		}
 	}
 };
