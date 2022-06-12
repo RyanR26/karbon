@@ -201,9 +201,11 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		)(
 			nodeOpen, 
 			nodeClose,
-			component,
-			lazy,
-			block
+			{
+				component,
+				lazy,
+				block
+			}
 		);
 		
 		subscribesToArray.length = subscribesToArray.length - 1;
