@@ -20,8 +20,8 @@ const emptyVNodeStatic = {
 const recycledVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recycled' });
 const recyclableVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recyclable' });
 
-// Algorithm for syncing prev vNode tree with new vNode tree
-// Each node in the vtree array needs to be compared to a node on the same level in the old tree
+// Algorithm for syncing prev vNode array with new vNode array
+// Each node in the vNode array needs to be compared to a node on the same level in the old array
 export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, blockCache) => {
 	
 	let prevNode;
