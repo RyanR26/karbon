@@ -8,13 +8,15 @@ const emptyVNodeStatic = {
 	props: null,
 	level: undefined,
 	key: false,
-    keyedAction: null,
-    keyedChildren: null,
-    staticChildren: false,
+  keyedAction: null,
+  keyedChildren: null,
+  staticChildren: false,
 	parentComponent: null,
 	parentComponentIndex: null,
-    subscribesTo: null,
-    dom: null
+  subscribesTo: null,
+  dom: null,
+  block: false,
+  blockProps: undefined
 };
 
 const vNode = (
@@ -23,25 +25,29 @@ const vNode = (
 	props={}, 
 	level=1, 
 	key=false, 
-    keyedAction=undefined,
-    keyedChildren=[],
-    staticChildren=false,
+  keyedAction=undefined,
+  keyedChildren=[],
+  staticChildren=false,
 	parentComponent='testComp', 
 	parentComponentIndex=1, 
-	subscribesTo=[]
+	subscribesTo=[],
+  block=false,
+  blockProps=undefined
 ) => ({
 	type,
 	lang,
 	props,
 	level,
 	key,
-    keyedAction,
-    keyedChildren,
-    staticChildren,
+  keyedAction,
+  keyedChildren,
+  staticChildren,
 	parentComponent,
 	parentComponentIndex,
-    subscribesTo,
-    dom: null
+  subscribesTo,
+  dom: null,
+  block,
+  blockProps
 });
 
 const _ = undefined;
@@ -285,7 +291,7 @@ test('Normalise by level - Ignore recycled keyed node', () => {
 	expect(sunkNodes.domNodes[0].keyedAction).toEqual('recycled');
 });
 
-test('Normalise by level - Replace old keyed node with new node', () => {
+test('Normalise by level - Remove old keyed node', () => {
 	const sunkNodes = syncVNodes(
 		[vNode(_,_,_,1, false)], 
 		[vNode(_,_,_,1, 'keyName')], 
@@ -296,7 +302,7 @@ test('Normalise by level - Replace old keyed node with new node', () => {
 			1: {}
 		}
 	);
-	expect(sunkNodes.domNodesPrev[0].key).toEqual(false);
+  expect(sunkNodes.domNodes[0]).toEqual(emptyVNodeStatic);
 });
 
 test('Normalise by level - Remove old keyed node', () => {
@@ -312,7 +318,7 @@ test('Normalise by level - Remove old keyed node', () => {
 			}
 		}
 	);
-	expect(sunkNodes.domNodesPrev[0].key).toEqual(false);
+  expect(sunkNodes.domNodes[0]).toEqual(emptyVNodeStatic);
 });
 
 test('Normalise by level - Mark old node as recyclable', () => {

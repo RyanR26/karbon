@@ -1,4 +1,6 @@
-import { arraysAreEqual, isDefined, isUndefined, isArray, isFunction, isNullorUndef, isNotNull, isNull } from '../src/utils/utils';
+/* eslint-disable no-undef */
+/* eslint-disable indent */
+import { arraysAreEqual, isDefined, isUndefined, isNotNull } from '../src/utils/utils';
 
 const function1 = index => {
 	return index + 1;
