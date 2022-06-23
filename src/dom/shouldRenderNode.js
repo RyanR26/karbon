@@ -45,8 +45,8 @@ export const shouldRenderNode = (
 		if (isNull(objNew.keyedAction) && (isUndefined(objNew.blockProps) || objsAreEqual(objPrev.blockProps, objNew.blockProps))) {
 			return false;
 		} else {
-			if(objNew.keyedAction === 'insertOld' || objNew.keyedAction === 'swap' ) {
-				updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, objPrev.blockProps, objNew.blockProps, true);
+			if(objNew.keyedAction === 'insertOld') {
+				updateRenderObj(true, 'handleKeyedUpdate', 'insertOld', objPrev.blockProps, objNew.blockProps, true);
 			} else {
 				updateRenderObj(true, 'handleKeyedUpdate', 'runBlockUpdates', objPrev.blockProps, objNew.blockProps, true);
 			}
