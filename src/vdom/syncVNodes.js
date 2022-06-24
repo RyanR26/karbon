@@ -19,7 +19,6 @@ const emptyVNodeStatic = {
 };
 
 const recycledVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recycled' });
-const recyclableVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recyclable' });
 
 function syncLists(oldList, newList, keyedNodes, keyedNodesPrev, blockCache) {
       
@@ -30,7 +29,7 @@ function syncLists(oldList, newList, keyedNodes, keyedNodesPrev, blockCache) {
 	let newTail = newList.length - 1;
 	let oldTail = oldList.length - 1;
 
-	function triggerInsertionOfKeyedNode(prevNode, node) {
+	function triggerInsertionOfKeyedOrUnkeyedNode(prevNode, node) {
 		if (isDefined(node) && keyedNodesPrev[node.key]) {
 			node.keyedAction = 'insertOld';
 			newListSynced[newListSynced.length] = node;
@@ -54,12 +53,6 @@ function syncLists(oldList, newList, keyedNodes, keyedNodesPrev, blockCache) {
 		newListSynced[newListSynced.length] = recycledVNodeStatic;
 		oldListSynced[oldListSynced.length] = prevNode;
 		oldHead = oldHead + prevNode.keyedChildren.length + 1;
-	}
-
-	function markOldKeyedNodeAsRecyclable(prevNode) {
-		newListSynced[newListSynced.length] = recyclableVNodeStatic;
-		oldListSynced[oldListSynced.length] = prevNode; 
-		oldHead = oldHead + prevNode.keyedChildren.length + 1;        
 	}
 
 	function triggerRemovalOfKeyedNode(prevNode) {
@@ -93,12 +86,10 @@ function syncLists(oldList, newList, keyedNodes, keyedNodesPrev, blockCache) {
 
 	function syncNode(prevNode, node) {
 
-		// console.log(prevNode, node);
-
 		if (isUndefined(prevNode) || (isDefined(node) && prevNode.level < node.level)) {
 
 			if (node.key) {
-				triggerInsertionOfKeyedNode(prevNode, node);
+				triggerInsertionOfKeyedOrUnkeyedNode(prevNode, node);
 			} else {
 				oldListSynced[oldListSynced.length] = emptyVNodeStatic;
 				newListSynced[newListSynced.length] = node;
@@ -125,17 +116,12 @@ function syncLists(oldList, newList, keyedNodes, keyedNodesPrev, blockCache) {
 					triggerPropsCompareOfTwoEqualKeyedNodes(prevNode, node);
 				} 
 				else if (keyedNodes[prevNode.key]) {
-					if (node.key) {
-						triggerInsertionOfKeyedNode(prevNode, node);
-					} else {
-						markOldKeyedNodeAsRecyclable(prevNode);
-					}
+					triggerInsertionOfKeyedOrUnkeyedNode(prevNode, node);
 				} else {
 					triggerRemovalOfKeyedNode(prevNode, node);
 				}
 			}
 			else if (node.key) {
-				// triggerInsertionOfKeyedNode(prevNode, node);
 				// remove old unkeyed node
 				newListSynced[newListSynced.length] = emptyVNodeStatic;
 				oldListSynced[oldListSynced.length] = prevNode;  
@@ -148,9 +134,6 @@ function syncLists(oldList, newList, keyedNodes, keyedNodesPrev, blockCache) {
 				oldHead++;
 			}				
 		}	
-    
-		// console.log(oldListSynced[oldListSynced.length-1], newListSynced[newListSynced.length-1] );
-		// console.log('++++++++++++++++++++++++++++++++');
 	}
 
 	while (newHead <= newTail || oldHead <= oldTail) {
@@ -174,7 +157,6 @@ export const syncVNodes = (domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, b
 	} 
 	else {
 		syncedLists = syncLists(domNodesPrev, domNodes, keyedNodes, keyedNodesPrev, blockCache);
-		console.log(syncedLists);
 	}
 
 	return {

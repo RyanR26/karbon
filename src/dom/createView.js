@@ -160,7 +160,6 @@ const patch = () => {
 		case 'handleKeyedUpdate': {
 
 			const currentDomNode = $_parentNode.children[getDomIndex(currentLevel)];
-      console.log(currentDomNode);
 			const recycledDomNode = prevNode.dom;
 			const keyedAction = renderNode.keyedAction;
 			$_currentNode = recycledDomNode;
@@ -179,7 +178,6 @@ const patch = () => {
 				domOpsCount ++;
 			}
 			else if (keyedAction === 'insertOld') {
-        console.log(recycledDomNode, currentDomNode)
 				$_parentNode.insertBefore(recycledDomNode, currentDomNode);
 				keyedNodeRecycleBin[node.key] = true;
 				domOpsCount ++;
