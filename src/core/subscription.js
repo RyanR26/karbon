@@ -4,15 +4,19 @@ export const subscription = (() => {
 
 	const getCache = () => cache;
 
-	const add = (el, eventName, functRef, funct, args = []) => {
-		args = args || [];
-		cache[functRef] = function (event) { funct.apply(null, [...args, event]); };
-		el.addEventListener(eventName, cache[functRef]);
+	const add = (el, eventName, functRef, funct, args=[], typeLocal) => {
+		cache[functRef] = {
+      fun: function (event) { funct.apply(null, [...args, event]); },
+      el,
+      eventName, 
+      typeLocal
+    };
+		el.addEventListener(eventName, cache[functRef].fun);
 	};
 
 	const remove = (el, eventName, functRef) => {
-		el.removeEventListener(eventName, cache[functRef]);
-		cache[functRef] = undefined;
+		el.removeEventListener(eventName, cache[functRef].fun);
+		delete cache[functRef];
 	};
 
 	return {

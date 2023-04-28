@@ -28,6 +28,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 	let renderingSvg = false;
 	let lazyCount = 0;
 	let renderProcess;
+  let localSubs = [];
 
 	const getVDomNodesArray = () => vDomNodesArray;
 	
@@ -40,6 +41,16 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		// reset keyedNodes Obj instead of creating new one
 		clearObject(keyedNodes);
 	};
+
+  const setLocalSubs = subs => {
+    localSubs = [...localSubs, ...subs];
+  };
+
+  const getLocalSubs = () => localSubs;
+
+  const resetLocalSubs = () => {
+    localSubs.length = 0;
+  };
 	
 	const resetVDomNodesArray = () => {
 		vDomNodesArray.length = 0;
@@ -163,6 +174,18 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 				}
 			}
 		}
+
+    /////////////////////////////////////////////////////////////////////////////
+    /// subscriptions ///
+    /// if defined add to global subsciptions array ///
+    /// subscriptions defined here have access to components local actions ///
+    /////////////////////////////////////////////////////////////////////////////
+
+    let dataSubscriptions = data.subscriptions;
+
+    if (isDefined(dataSubscriptions)) {
+      setLocalSubs(dataSubscriptions(runTime.getState(), localActions));
+    }
 
 		/////////////////////////////////
 		/// run component  ///
@@ -302,6 +325,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		getVDomNodesArray,
 		resetVDomNodesArray,
 		getLazyCount,
-		getBlockCache
+		getBlockCache,
+    getLocalSubs,
+    resetLocalSubs
 	};
 };

@@ -8,15 +8,16 @@ const emptyVNodeStatic = {
 	props: null,
 	level: undefined,
 	key: false,
-  keyedAction: null,
-  keyedChildren: null,
-  staticChildren: false,
+	keyedAction: null,
+	keyedChildren: null,
+	staticChildren: false,
 	parentComponent: null,
 	parentComponentIndex: null,
-  subscribesTo: null,
-  dom: null,
-  block: false,
-  blockProps: undefined
+	subscribesTo: null,
+	dom: null,
+	block: false,
+	blockProps: undefined,
+	blockChild: false
 };
 
 const vNode = (
@@ -32,7 +33,8 @@ const vNode = (
 	parentComponentIndex=1, 
 	subscribesTo=[],
   block=false,
-  blockProps=undefined
+  blockProps=undefined,
+  blockChild=false
 ) => ({
 	type,
 	lang,
@@ -47,7 +49,8 @@ const vNode = (
   subscribesTo,
   dom: null,
   block,
-  blockProps
+  blockProps,
+  blockChild
 });
 
 const _ = undefined;

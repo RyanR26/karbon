@@ -4,7 +4,7 @@ import { createView } from '../dom/createView';
 import { createString } from '../server/createString';
 import { isDefined, isFunction } from '../utils/utils';
 
-let vdomNodeBuilder;
+let vDomNodeBuilder;
 let vDomNodesArrayPrevious = [];
 
 export const renderString = (
@@ -15,9 +15,9 @@ export const renderString = (
 	asyncResolve
 ) => {
 
-	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
-	const nodeBuilderInstance = vdomNodeBuilder[appId];
+	vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
+	const nodeBuilderInstance = vDomNodeBuilder[appId];
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'toString');
 
 	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
@@ -44,9 +44,9 @@ export const hydrateApp = (
 	sequenceCache
 ) => { 
 
-	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
-	const nodeBuilderInstance = vdomNodeBuilder[appId];
+	vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
+	const nodeBuilderInstance = vDomNodeBuilder[appId];
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'creatingHydrationLayer');
 	
 	if (nodeBuilderInstance.getLazyCount() !== 0) {
@@ -76,6 +76,7 @@ export const renderApp = (
 	appView, 
 	runTime, 
 	appGlobalActions, 
+  app,
 	appOnInit, 
 	changedStateKeys, 
 	sequenceId, 
@@ -88,20 +89,26 @@ export const renderApp = (
 	let nodeBuilderInstance;
 
 	if (!firstRender || isHydrating) {
-		nodeBuilderInstance = vdomNodeBuilder[appId];
+		nodeBuilderInstance = vDomNodeBuilder[appId];
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 		nodeBuilderInstance.resetVDomNodesArray();
 	} 
 	else {
-		vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions);
-		nodeBuilderInstance = vdomNodeBuilder[appId];
+		vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+		vDomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions);
+		nodeBuilderInstance = vDomNodeBuilder[appId];
 		virtualDom.setInitialized(false);
 		virtualDom.setSync(false);
-	}
+
+  }
 
 	nodeBuilderInstance.setKeyedNodesPrev();
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'toDom');
+  const localSubs = nodeBuilderInstance.getLocalSubs();
+  if (localSubs.length > 0) {
+    app.runHandleLocalSubs(localSubs, appId);
+  }
+  nodeBuilderInstance.resetLocalSubs();
 
 	createView(
 		appContainer,
