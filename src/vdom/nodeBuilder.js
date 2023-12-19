@@ -75,7 +75,8 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			subscribesToArray[subscribesToArray.length - 1],
 			renderingSvg,
 			block,
-			blockProps
+			blockProps,
+			false
 		);
 
 		if (renderProcess === 'creatingHydrationLayer') {
@@ -103,6 +104,9 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		if (isDefined(keyedParent)) {
 			if (rootIndex > keyedParentLevel) {
 				keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
+				if (vNode.block) {
+					keyedParent.blockChild = true;
+				}
 			} else if (rootIndex === keyedParentLevel) {
 				keyedParent = undefined;
 				keyedParentLevel = undefined;
@@ -113,11 +117,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			keyedParentLevel = rootIndex;
 			keyedParent = vNode;
 			vNode.keyedChildren = [];
-
-			if (isUndefined(keyedNodes[rootIndex])) {
-				keyedNodes[rootIndex] = {};
-			}
-			keyedNodes[rootIndex][keyName] = vNode;
+			keyedNodes[keyName] = vNode;
 		}
 
 		if (!voidedElements[tagName]) {

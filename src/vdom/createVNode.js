@@ -11,7 +11,8 @@ export const createVNode = (
 	subscribesTo, 
 	renderingSvg,
 	block,
-	blockProps
+	blockProps,
+	blockChild
 ) => {
 
 	const props = {}; 
@@ -20,7 +21,7 @@ export const createVNode = (
 	for (let i = 0; i < elProps.length; i++) {
 		const prop = elProps[i];	
 		const value = data[prop];
-		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : block ? value : `<span data="dangerously-set-innerHTML">${value}</span>`;
+		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : `<span data="dangerously-set-innerHTML">${value}</span>`;
 	}
 
 	return {
@@ -37,7 +38,8 @@ export const createVNode = (
 		subscribesTo,
 		dom: null,
 		block,
-		blockProps
+		blockProps,
+		blockChild
 	};
 };
 

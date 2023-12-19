@@ -192,7 +192,7 @@ const patch = () => {
 					}
 				}
 			}
-			else if (keyedAction === 'swap' || (isDefined(currentDomNode) && !currentDomNode.isEqualNode(recycledDomNode))) {	
+			else if (isDefined(currentDomNode) && !currentDomNode.isEqualNode(recycledDomNode)) {	
 				swapElements($_parentNode, currentDomNode, recycledDomNode);
 				keyedNodeRecycleBin[node.key] = true;
 				domOpsCount ++;
