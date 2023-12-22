@@ -1,8 +1,8 @@
 import { isEmpty, isNotEmpty, isString, isArray, isDefined, isUndefined } from '../utils/utils';
 
 export const updateChangedNode = (prop, value, node) => {
-console.log(prop, value, node)
-	switch (prop) {
+
+  switch (prop) {
 
 	case 'class': {
 		node.removeAttribute(prop);
@@ -45,7 +45,6 @@ console.log(prop, value, node)
 		}
 		break;
 	case 'data':
-    console.log(value)
 		// remove all data attrs
 		for (let i = 0; i < node.attributes.length; i++) {
 			if (/^data-/i.test(node.attributes[i].name)) {

@@ -90,9 +90,6 @@ export const renderApp = (
 
 	nodeBuilderInstance.setKeyedNodesPrev();
 	nodeBuilderInstance.renderRootComponent({ $$_appRootView : karbon.appView[appId] }, { props: runTime.getState() }, 'toDom');
-  const localSubs = nodeBuilderInstance.getLocalSubs();
-  karbon.runHandleLocalSubs(localSubs, appId);
-  nodeBuilderInstance.resetLocalSubs();
 
 	createView(
 		karbon.appContainer[appId],

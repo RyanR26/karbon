@@ -8,7 +8,6 @@ export const createRunTime = (app, appId) => {
 	/* START.DEV_ONLY */
 	let appTap = app.appTap[appId] || {};
 	/* END.DEV_ONLY */
-  let localSubs = [];
 	let sequenceCounter = 0;
 	const updatesQueue = {};
 	const callbacks = {};
@@ -20,12 +19,6 @@ export const createRunTime = (app, appId) => {
 
 	const getState = () => appState;
 
-  const setLocalSubs = subs => {
-    localSubs = [...localSubs, ...subs];
-  };
-
-  const getLocalSubs = () => localSubs;
-	
 	const updateMethods = (() => {
 		
 		let callbackData = null;
@@ -47,7 +40,6 @@ export const createRunTime = (app, appId) => {
 			sequenceCache = Object.assign({}, cache);
 			sequenceCounter ++;
 			const sequenceId = (stampId || randomStringId()) + '_' + sequenceCounter ;
-			// const sequenceCache = Object.assign({}, cache);
 			cache = undefined;
 			stampId = undefined;
       
@@ -438,8 +430,6 @@ export const createRunTime = (app, appId) => {
 	return {
 		setState,
 		getState,
-    setLocalSubs,
-    getLocalSubs,
 		exeQueuedMsgs,
 		forceReRender,
 		stamp: updateMethods.stamp,

@@ -1,11 +1,8 @@
 export const subscription = (() => {
 
-  console.log('initi SUBS')
-
 	const cache = {};
 
 	const getCache = () => {
-    console.log('CHCHCCCCCHC', cache)
     return cache;
   };
 
@@ -13,12 +10,11 @@ export const subscription = (() => {
     cache[key] = value;
   };
 
-	const addEvent = (el, name, functRef, funct, args=[], typeLocal) => {
+	const addEvent = (el, name, functRef, funct, args=[]) => {
 		cache[functRef] = {
       fun: function (event) { funct.apply(null, [...args, event]); },
       el,
       name, 
-      typeLocal
     };
 		el.addEventListener(name, cache[functRef].fun);
 	};

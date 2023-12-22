@@ -111,8 +111,8 @@ export const karbon = (() => ({
 		return globalActions(actions, runTime);
 	},
 
-	handleSubs(subs, appId, isLocalSubs=false) {
-    handleSubscriptions(subs, appId, isLocalSubs, this.appTap);
+	handleSubs(subs, appId) {
+    handleSubscriptions(subs, appId, this.appTap);
 	},
 
 	runHandleSubs(appId) {
@@ -120,10 +120,6 @@ export const karbon = (() => ({
       this.handleSubs(this.appSubs[appId](this.runTime[appId].getState(), this.appGlobalActions[appId]), appId);
 		}
 	},
-
-  runHandleLocalSubs(subs, appId) {
-    this.handleSubs(subs, appId, true);
-  },
 
 	reRender(changedStateKeys, sequenceId, appId, sequenceCache, creatingHydrationLayer) {
 
