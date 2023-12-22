@@ -5,7 +5,6 @@ import { virtualDom } from '../vdom/vDomState';
 export const createRunTime = (app, appId) => {
 
 	let appState;
-	let appFx = app.appFx[appId];
 	/* START.DEV_ONLY */
 	let appTap = app.appTap[appId] || {};
 	/* END.DEV_ONLY */
@@ -162,11 +161,7 @@ export const createRunTime = (app, appId) => {
 
 				const effectCacheKey = msgPayload.cache;
 				const effectName = msgPayload.name || msgPayload.def;
-				const effectFun = isFunction(effectName) ?
-					effectName :
-					isDefined(appFx[effectName]) ?
-						appFx[effectName] :
-						() => console.warn(`no effect '${effectName}' registered`);
+				const effectFun = isFunction(effectName) ? effectName : () => console.warn(`Effect '${effectName}' is not a function.`);
         
 				const effectOutput = isArray(msgPayload.args) ?
 					effectFun(...msgPayload.args) :

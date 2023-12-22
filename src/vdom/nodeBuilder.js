@@ -73,7 +73,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		// createElementObj args are :
 		// const createElementObj = (type, parentComponentIndex, id, data, level, key, parentComponentName, subscribesTo)
 		keyName = flags.key;
-		isKeyed = keyName !== false;
+		isKeyed = !!keyName;
 
 		vNode = createVNode(
 			tagName,
@@ -145,7 +145,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			
 		const viewRef = Object.keys(comp)[0];
 		const view = comp[viewRef];
-		const index = isUndefined(data.index) ? 0 : data.index;
+		const index = data.index || 0;
 
 		componentActiveArray[componentActiveArray.length] = viewRef;
 		componentActiveIndexArray[componentActiveIndexArray.length] = index;

@@ -7,18 +7,14 @@ import { isDefined, isFunction } from '../utils/utils';
 let vDomNodeBuilder;
 let vDomNodesArrayPrevious = [];
 
-export const renderString = (
-	appView, 
-	runTime, 
-	appGlobalActions, 
-	appId,
-	asyncResolve
-) => {
+export const renderString = (karbon, appId) => {
 
+  const runTime = karbon.runTime[appId];
+  const asyncResolve = karbon.toStringAsyncResolve[appId];
 	vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
-	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
+	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, karbon.appGlobalActions[appId]);
 	const nodeBuilderInstance = vDomNodeBuilder[appId];
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'toString');
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : karbon.appView[appId] }, { props: runTime.getState() }, 'toString');
 
 	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
 		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
@@ -32,22 +28,19 @@ export const renderString = (
 };
 
 export const hydrateApp = (
-	appContainer,
-	appView, 
-	runTime, 
-	appGlobalActions, 
-	appOnInit, 
+  karbon,
+	appId,
+  firstRender,
 	changedStateKeys, 
 	sequenceId, 
-	firstRender,
-	appId,
 	sequenceCache
 ) => { 
-
+  
+  const runTime = karbon.runTime[appId];
 	vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
-	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
+	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, karbon.appGlobalActions[appId]);
 	const nodeBuilderInstance = vDomNodeBuilder[appId];
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'creatingHydrationLayer');
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : karbon.appView[appId] }, { props: runTime.getState() }, 'creatingHydrationLayer');
 	
 	if (nodeBuilderInstance.getLazyCount() !== 0) {
 		nodeBuilderInstance.resetVDomNodesArray();
@@ -55,15 +48,11 @@ export const hydrateApp = (
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 
 		renderApp(
-			appContainer,
-			appView, 
-			runTime, 
-			appGlobalActions, 
-			appOnInit, 
+			karbon,
+      appId,
+      firstRender,
 			changedStateKeys, 
 			sequenceId, 
-			firstRender,
-			appId,
 			sequenceCache,
 			true
 		);
@@ -72,20 +61,18 @@ export const hydrateApp = (
 };
 
 export const renderApp = (
-	appContainer,
-	appView, 
-	runTime, 
-	appGlobalActions, 
-  app,
-	appOnInit, 
+	karbon,
+  appId,
+  firstRender,
 	changedStateKeys, 
 	sequenceId, 
-	firstRender,
-	appId,
 	sequenceCache,
 	isHydrating
 ) => {
 
+  const runTime = karbon.runTime[appId];
+  const globalActions = karbon.appGlobalActions[appId];
+  const appInit = karbon.appOnInit[appId];
 	let nodeBuilderInstance;
 
 	if (!firstRender || isHydrating) {
@@ -95,23 +82,20 @@ export const renderApp = (
 	} 
 	else {
 		vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
-		vDomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions);
+		vDomNodeBuilder[appId] = nodeBuilder(runTime, globalActions);
 		nodeBuilderInstance = vDomNodeBuilder[appId];
 		virtualDom.setInitialized(false);
 		virtualDom.setSync(false);
-
   }
 
 	nodeBuilderInstance.setKeyedNodesPrev();
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'toDom');
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : karbon.appView[appId] }, { props: runTime.getState() }, 'toDom');
   const localSubs = nodeBuilderInstance.getLocalSubs();
-  if (localSubs.length > 0) {
-    app.runHandleLocalSubs(localSubs, appId);
-  }
+  karbon.runHandleLocalSubs(localSubs, appId);
   nodeBuilderInstance.resetLocalSubs();
 
 	createView(
-		appContainer,
+		karbon.appContainer[appId],
 		nodeBuilderInstance.getVDomNodesArray(),
 		vDomNodesArrayPrevious,
 		changedStateKeys,
@@ -124,9 +108,8 @@ export const renderApp = (
 	if (!firstRender && !isHydrating) {
 		runTime.exeQueuedMsgs(undefined, sequenceId, undefined, sequenceCache);
 	} else {
-		if (isFunction(appOnInit)) appOnInit(appGlobalActions);
+		if (isFunction(appInit)) appInit(globalActions);
 		virtualDom.setInitialized(true);
 		virtualDom.setSync(true);
 	}  
-
 };

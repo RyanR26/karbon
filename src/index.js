@@ -1,4 +1,4 @@
-import { karbon } from './core/core';
+import { karbon } from './core/index.js';
 import { isBrowser } from './utils/utils';
 
 export let render; 
