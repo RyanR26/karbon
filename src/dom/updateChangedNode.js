@@ -2,8 +2,7 @@ import { isEmpty, isNotEmpty, isString, isArray, isDefined, isUndefined } from '
 
 export const updateChangedNode = (prop, value, node) => {
 
-	// console.log(prop, value, node)
-	switch (prop) {
+  switch (prop) {
 
 	case 'class': {
 		node.removeAttribute(prop);

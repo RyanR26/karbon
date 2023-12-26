@@ -4,21 +4,17 @@ import { createView } from '../dom/createView';
 import { createString } from '../server/createString';
 import { isDefined, isFunction } from '../utils/utils';
 
-let vdomNodeBuilder;
+let vDomNodeBuilder;
 let vDomNodesArrayPrevious = [];
 
-export const renderString = (
-	appView, 
-	runTime, 
-	appGlobalActions, 
-	appId,
-	asyncResolve
-) => {
+export const renderString = (karbon, appId) => {
 
-	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
-	const nodeBuilderInstance = vdomNodeBuilder[appId];
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'toString');
+  const runTime = karbon.runTime[appId];
+  const asyncResolve = karbon.toStringAsyncResolve[appId];
+	vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, karbon.appGlobalActions[appId]);
+	const nodeBuilderInstance = vDomNodeBuilder[appId];
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : karbon.appView[appId] }, { props: runTime.getState() }, 'toString');
 
 	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
 		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
@@ -32,22 +28,19 @@ export const renderString = (
 };
 
 export const hydrateApp = (
-	appContainer,
-	appView, 
-	runTime, 
-	appGlobalActions, 
-	appOnInit, 
+  karbon,
+	appId,
+  firstRender,
 	changedStateKeys, 
 	sequenceId, 
-	firstRender,
-	appId,
 	sequenceCache
 ) => { 
-
-	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
-	const nodeBuilderInstance = vdomNodeBuilder[appId];
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'creatingHydrationLayer');
+  
+  const runTime = karbon.runTime[appId];
+	vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, karbon.appGlobalActions[appId]);
+	const nodeBuilderInstance = vDomNodeBuilder[appId];
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : karbon.appView[appId] }, { props: runTime.getState() }, 'creatingHydrationLayer');
 	
 	if (nodeBuilderInstance.getLazyCount() !== 0) {
 		nodeBuilderInstance.resetVDomNodesArray();
@@ -55,15 +48,11 @@ export const hydrateApp = (
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 
 		renderApp(
-			appContainer,
-			appView, 
-			runTime, 
-			appGlobalActions, 
-			appOnInit, 
+			karbon,
+      appId,
+      firstRender,
 			changedStateKeys, 
 			sequenceId, 
-			firstRender,
-			appId,
 			sequenceCache,
 			true
 		);
@@ -72,39 +61,38 @@ export const hydrateApp = (
 };
 
 export const renderApp = (
-	appContainer,
-	appView, 
-	runTime, 
-	appGlobalActions, 
-	appOnInit, 
+	karbon,
+  appId,
+  firstRender,
 	changedStateKeys, 
 	sequenceId, 
-	firstRender,
-	appId,
 	sequenceCache,
 	isHydrating
 ) => {
 
+  const runTime = karbon.runTime[appId];
+  const globalActions = karbon.appGlobalActions[appId];
+  const appInit = karbon.appOnInit[appId];
 	let nodeBuilderInstance;
 
 	if (!firstRender || isHydrating) {
-		nodeBuilderInstance = vdomNodeBuilder[appId];
+		nodeBuilderInstance = vDomNodeBuilder[appId];
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 		nodeBuilderInstance.resetVDomNodesArray();
 	} 
 	else {
-		vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions);
-		nodeBuilderInstance = vdomNodeBuilder[appId];
+		vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+		vDomNodeBuilder[appId] = nodeBuilder(runTime, globalActions);
+		nodeBuilderInstance = vDomNodeBuilder[appId];
 		virtualDom.setInitialized(false);
 		virtualDom.setSync(false);
-	}
+  }
 
 	nodeBuilderInstance.setKeyedNodesPrev();
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView : appView }, { props: runTime.getState() }, 'toDom');
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView : karbon.appView[appId] }, { props: runTime.getState() }, 'toDom');
 
 	createView(
-		appContainer,
+		karbon.appContainer[appId],
 		nodeBuilderInstance.getVDomNodesArray(),
 		vDomNodesArrayPrevious,
 		changedStateKeys,
@@ -117,9 +105,8 @@ export const renderApp = (
 	if (!firstRender && !isHydrating) {
 		runTime.exeQueuedMsgs(undefined, sequenceId, undefined, sequenceCache);
 	} else {
-		if (isFunction(appOnInit)) appOnInit(appGlobalActions);
+		if (isFunction(appInit)) appInit(globalActions);
 		virtualDom.setInitialized(true);
 		virtualDom.setSync(true);
 	}  
-
 };

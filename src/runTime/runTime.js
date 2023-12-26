@@ -5,7 +5,6 @@ import { virtualDom } from '../vdom/vDomState';
 export const createRunTime = (app, appId) => {
 
 	let appState;
-	let appFx = app.appFx[appId];
 	/* START.DEV_ONLY */
 	let appTap = app.appTap[appId] || {};
 	/* END.DEV_ONLY */
@@ -19,7 +18,7 @@ export const createRunTime = (app, appId) => {
 	};
 
 	const getState = () => appState;
-	
+
 	const updateMethods = (() => {
 		
 		let callbackData = null;
@@ -41,7 +40,6 @@ export const createRunTime = (app, appId) => {
 			sequenceCache = Object.assign({}, cache);
 			sequenceCounter ++;
 			const sequenceId = (stampId || randomStringId()) + '_' + sequenceCounter ;
-			// const sequenceCache = Object.assign({}, cache);
 			cache = undefined;
 			stampId = undefined;
       
@@ -91,7 +89,6 @@ export const createRunTime = (app, appId) => {
 	const exeQueuedMsgs = (data, sequenceId, sequenceCompleted=true, sequenceCache) => {
 
 		if (isDefined(sequenceId)) {
-
 			if (updatesQueue[sequenceId].length > 0) {
 				processMsg(sequenceId, updatesQueue[sequenceId].shift(), data, sequenceCache);
 			} 
@@ -129,7 +126,7 @@ export const createRunTime = (app, appId) => {
 			const renderFlags = msgArray[2] || {};
 
 			/* START.DEV_ONLY */
-			if (isDefined(appTap.message))	appTap.message({msg: msgArray, sequenceId, input: data});
+			if (isDefined(appTap.message)) appTap.message({msg: msgArray, sequenceId, input: data});
 			/* END.DEV_ONLY */
 			
 			// msgArray[0] === msgType
@@ -156,11 +153,7 @@ export const createRunTime = (app, appId) => {
 
 				const effectCacheKey = msgPayload.cache;
 				const effectName = msgPayload.name || msgPayload.def;
-				const effectFun = isFunction(effectName) ?
-					effectName :
-					isDefined(appFx[effectName]) ?
-						appFx[effectName] :
-						() => console.warn(`no effect '${effectName}' registered`);
+				const effectFun = isFunction(effectName) ? effectName : () => console.warn(`Effect '${effectName}' is not a function.`);
         
 				const effectOutput = isArray(msgPayload.args) ?
 					effectFun(...msgPayload.args) :
@@ -205,27 +198,46 @@ export const createRunTime = (app, appId) => {
 			}
 				break;
 
-			case 'control':
+			case 'control': {
+        
+        const condition = !!msgPayload.if;
+        const conditionPayloadIsArray = isArray(msgPayload[condition]);
+        const conditionPayload = conditionPayloadIsArray ? msgPayload[condition][0] : msgPayload[condition];
+        const sequenceAction = conditionPayloadIsArray ? msgPayload[condition][1] : null;
+        const sequenceActionParam = conditionPayloadIsArray ? msgPayload[condition][2] : null;
+        const effectCacheKey = msgPayload.cache;
+        let sequenceComplete = false;
 
-				if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue) || isNumber(msgPayload.skip)) {
-					if (!msgPayload.if) {
-						if (isNumber(msgPayload.continue)) {
-							updatesQueue[sequenceId].length = msgPayload.continue;
-						} 
-						else if (isNumber(msgPayload.skip)) {
-							updatesQueue[sequenceId].splice(0, msgPayload.skip);
-						}
-					}
-					exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse , sequenceId, _, sequenceCache);
-				} else {
-					updatesQueue[sequenceId] = [];
-					if (msgPayload.break) {
-						delete callbacks[sequenceId];
-					} else {
-						exeQueuedMsgs(msgPayload.isFalse, sequenceId, false, sequenceCache);
-					}
-				}
-				
+        if (!sequenceAction) {
+          if (condition) {
+            sequenceComplete = true;
+          } else {
+            updatesQueue[sequenceId] = [];
+          }
+        } 
+        else if (sequenceAction === 'continue') {
+          if (isNumber(sequenceActionParam)) {
+            updatesQueue[sequenceId].length = sequenceActionParam;
+          }
+        }
+        else if (sequenceAction === 'skip' && sequenceActionParam) {
+          if (isNumber(sequenceActionParam)) {
+            updatesQueue[sequenceId].splice(0, sequenceActionParam);
+          }
+          /* START.DEV_ONLY */
+          if (!isNumber(sequenceActionParam)) {
+            console.warn('Control msg error - Parameter for "skip" must be of type Number to have any effect.');
+          }
+          /* END.DEV_ONLY */
+        }
+        else if (sequenceAction === 'break') {
+          updatesQueue[sequenceId] = [];
+          delete callbacks[sequenceId];
+        }
+
+        if (isDefined(effectCacheKey)) sequenceCache[effectCacheKey] = conditionPayload;
+        exeQueuedMsgs(conditionPayload, sequenceId, sequenceComplete, sequenceCache);
+      }
 				break;
 			
 			case 'cancel': {
@@ -306,13 +318,15 @@ export const createRunTime = (app, appId) => {
 					// if multiple values are provided as an array
 					if (isArray(value)) {
 						for (let i = 0; i < value.length; i++) {
-							args[args.length] = value[i];
+							// args[args.length] = value[i];
+              args[args.length] = isFunction(value[i]) ? value(data) : value[i];
 						}
 						// if only one value is provided but must be added more than 1 time
 						// use the same value.
 					} else {
 						for (let i = 0; i < add; i++) {
-							args[args.length] = value;
+							// args[args.length] = value;
+              args[args.length] = isFunction(value) ? value(data) : value;
 						}
 					}
 					// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
@@ -321,7 +335,7 @@ export const createRunTime = (app, appId) => {
 					// add one paramter to array (and remove)
 					if (isNotNull(value)) {
 						// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
-						data.splice(index, remove, value);
+						data.splice(index, remove, isFunction(value) ? value(data) : value);
 						// only remove parameter/s from array
 					} else {
 						if (isNullorUndef(data[index])) throw new Error(`Karbon - cannot remove. Array "${path[0]}" does not contain item at position "${index}".`);
@@ -343,15 +357,18 @@ export const createRunTime = (app, appId) => {
 				for (let i = 0; i < key.length; i++) {
 					if (isArray(value)) {
 						// update each prop with a corresponding value from value array
-						obj[key[i]] = value[i];
+						// obj[key[i]] = value[i];
+            obj[key[i]] = isFunction(value[i]) ? value(obj[key[i]]) : value[i];
 					} else {
 						// update each prop with the same fixed string value
-						obj[key[i]] = value;
+						// obj[key[i]] = value;
+            obj[key[i]] = isFunction(value) ? value(obj[key[i]]) : value;
 					}
 				}
 			} else {
 				// update one prop in one object
-				return obj[key] = value;
+        // If value is a function pass in the current state value as an argument
+				obj[key] = isFunction(value) ? value(obj[key]) : value;
 			}
 		} else if (path.length == 0) {
 			return obj;
@@ -396,7 +413,8 @@ export const createRunTime = (app, appId) => {
 		/* END.DEV_ONLY */
 
 		// run subscriptions function every time state changes. Even with no render
-		app.runHandleSubs(appId);
+    app.runHandleSubs(appId);
+
 		if (!preventRender)  {
 			app.reRender(changedStateKeys, sequenceId, appId, sequenceCache);
 		} else {

@@ -4,6 +4,44 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
   return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
 };
 
+var slicedToArray = function () {
+  function sliceIterator(arr, i) {
+    var _arr = [];
+    var _n = true;
+    var _d = false;
+    var _e = undefined;
+
+    try {
+      for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
+        _arr.push(_s.value);
+
+        if (i && _arr.length === i) break;
+      }
+    } catch (err) {
+      _d = true;
+      _e = err;
+    } finally {
+      try {
+        if (!_n && _i["return"]) _i["return"]();
+      } finally {
+        if (_d) throw _e;
+      }
+    }
+
+    return _arr;
+  }
+
+  return function (arr, i) {
+    if (Array.isArray(arr)) {
+      return arr;
+    } else if (Symbol.iterator in Object(arr)) {
+      return sliceIterator(arr, i);
+    } else {
+      throw new TypeError("Invalid attempt to destructure non-iterable instance");
+    }
+  };
+}();
+
 var toConsumableArray = function (arr) {
   if (Array.isArray(arr)) {
     for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i];
@@ -13,36 +51,6 @@ var toConsumableArray = function (arr) {
     return Array.from(arr);
   }
 };
-
-var subscription = function () {
-
-	var cache = {};
-
-	var getCache = function getCache() {
-		return cache;
-	};
-
-	var add = function add(el, eventName, functRef, funct) {
-		var args = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : [];
-
-		args = args || [];
-		cache[functRef] = function (event) {
-			funct.apply(null, [].concat(toConsumableArray(args), [event]));
-		};
-		el.addEventListener(eventName, cache[functRef]);
-	};
-
-	var remove = function remove(el, eventName, functRef) {
-		el.removeEventListener(eventName, cache[functRef]);
-		cache[functRef] = undefined;
-	};
-
-	return {
-		add: add,
-		remove: remove,
-		getCache: getCache
-	};
-}();
 
 /// UTILITIES ///
 
@@ -68,14 +76,6 @@ var isNullorUndef = function isNullorUndef(value) {
 
 var isNotNullandIsDef = function isNotNullandIsDef(value) {
 	return value !== null && value !== void 0;
-};
-
-var isFalse = function isFalse(value) {
-	return value === false;
-};
-
-var isNotFalse = function isNotFalse(value) {
-	return value !== false;
 };
 
 var isEmpty = function isEmpty(value) {
@@ -259,7 +259,6 @@ var virtualDom = function () {
 var createRunTime = function createRunTime(app, appId) {
 
 	var appState = void 0;
-	var appFx = app.appFx[appId];
 	/* START.DEV_ONLY */
 	var appTap = app.appTap[appId] || {};
 	/* END.DEV_ONLY */
@@ -301,7 +300,6 @@ var createRunTime = function createRunTime(app, appId) {
 			sequenceCache = Object.assign({}, cache);
 			sequenceCounter++;
 			var sequenceId = (stampId || randomStringId()) + '_' + sequenceCounter;
-			// const sequenceCache = Object.assign({}, cache);
 			cache = undefined;
 			stampId = undefined;
 
@@ -356,7 +354,6 @@ var createRunTime = function createRunTime(app, appId) {
 
 
 		if (isDefined(sequenceId)) {
-
 			if (updatesQueue[sequenceId].length > 0) {
 				processMsg(sequenceId, updatesQueue[sequenceId].shift(), data, sequenceCache);
 			} else {
@@ -416,8 +413,8 @@ var createRunTime = function createRunTime(app, appId) {
 
 						var effectCacheKey = msgPayload.cache;
 						var effectName = msgPayload.name || msgPayload.def;
-						var effectFun = isFunction(effectName) ? effectName : isDefined(appFx[effectName]) ? appFx[effectName] : function () {
-							return console.warn('no effect \'' + effectName + '\' registered');
+						var effectFun = isFunction(effectName) ? effectName : function () {
+							return console.warn('Effect \'' + effectName + '\' is not a function.');
 						};
 
 						var effectOutput = isArray(msgPayload.args) ? effectFun.apply(undefined, toConsumableArray(msgPayload.args)) : effectFun(msgPayload.args);
@@ -463,25 +460,42 @@ var createRunTime = function createRunTime(app, appId) {
 					break;
 
 				case 'control':
+					{
+						var condition = !!msgPayload.if;
+						var conditionPayloadIsArray = isArray(msgPayload[condition]);
+						var conditionPayload = conditionPayloadIsArray ? msgPayload[condition][0] : msgPayload[condition];
+						var sequenceAction = conditionPayloadIsArray ? msgPayload[condition][1] : null;
+						var sequenceActionParam = conditionPayloadIsArray ? msgPayload[condition][2] : null;
+						var _effectCacheKey = msgPayload.cache;
+						var sequenceComplete = false;
 
-					if (msgPayload.if || msgPayload.continue || isNumber(msgPayload.continue) || isNumber(msgPayload.skip)) {
-						if (!msgPayload.if) {
-							if (isNumber(msgPayload.continue)) {
-								updatesQueue[sequenceId].length = msgPayload.continue;
-							} else if (isNumber(msgPayload.skip)) {
-								updatesQueue[sequenceId].splice(0, msgPayload.skip);
+						if (!sequenceAction) {
+							if (condition) {
+								sequenceComplete = true;
+							} else {
+								updatesQueue[sequenceId] = [];
 							}
-						}
-						exeQueuedMsgs(msgPayload.if ? msgPayload.isTrue : msgPayload.isFalse, sequenceId, _, sequenceCache);
-					} else {
-						updatesQueue[sequenceId] = [];
-						if (msgPayload.break) {
+						} else if (sequenceAction === 'continue') {
+							if (isNumber(sequenceActionParam)) {
+								updatesQueue[sequenceId].length = sequenceActionParam;
+							}
+						} else if (sequenceAction === 'skip' && sequenceActionParam) {
+							if (isNumber(sequenceActionParam)) {
+								updatesQueue[sequenceId].splice(0, sequenceActionParam);
+							}
+							/* START.DEV_ONLY */
+							if (!isNumber(sequenceActionParam)) {
+								console.warn('Control msg error - Parameter for "skip" must be of type Number to have any effect.');
+							}
+							/* END.DEV_ONLY */
+						} else if (sequenceAction === 'break') {
+							updatesQueue[sequenceId] = [];
 							delete callbacks[sequenceId];
-						} else {
-							exeQueuedMsgs(msgPayload.isFalse, sequenceId, false, sequenceCache);
 						}
-					}
 
+						if (isDefined(_effectCacheKey)) sequenceCache[_effectCacheKey] = conditionPayload;
+						exeQueuedMsgs(conditionPayload, sequenceId, sequenceComplete, sequenceCache);
+					}
 					break;
 
 				case 'cancel':
@@ -568,13 +582,15 @@ var createRunTime = function createRunTime(app, appId) {
 					// if multiple values are provided as an array
 					if (isArray(value)) {
 						for (var i = 0; i < value.length; i++) {
-							args[args.length] = value[i];
+							// args[args.length] = value[i];
+							args[args.length] = isFunction(value[i]) ? value(data) : value[i];
 						}
 						// if only one value is provided but must be added more than 1 time
 						// use the same value.
 					} else {
 						for (var _i2 = 0; _i2 < add; _i2++) {
-							args[args.length] = value;
+							// args[args.length] = value;
+							args[args.length] = isFunction(value) ? value(data) : value;
 						}
 					}
 					// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
@@ -583,7 +599,7 @@ var createRunTime = function createRunTime(app, appId) {
 					// add one paramter to array (and remove)
 					if (isNotNull(value)) {
 						// if(data[index] == undefined) throw new Error(`Karbon - cannot add/remove. Array "${path[0]}" does not contain item at position "${index}".`);
-						data.splice(index, remove, value);
+						data.splice(index, remove, isFunction(value) ? value(data) : value);
 						// only remove parameter/s from array
 					} else {
 						if (isNullorUndef(data[index])) throw new Error('Karbon - cannot remove. Array "' + path[0] + '" does not contain item at position "' + index + '".');
@@ -605,15 +621,18 @@ var createRunTime = function createRunTime(app, appId) {
 				for (var _i3 = 0; _i3 < _key2.length; _i3++) {
 					if (isArray(value)) {
 						// update each prop with a corresponding value from value array
-						obj[_key2[_i3]] = value[_i3];
+						// obj[key[i]] = value[i];
+						obj[_key2[_i3]] = isFunction(value[_i3]) ? value(obj[_key2[_i3]]) : value[_i3];
 					} else {
 						// update each prop with the same fixed string value
-						obj[_key2[_i3]] = value;
+						// obj[key[i]] = value;
+						obj[_key2[_i3]] = isFunction(value) ? value(obj[_key2[_i3]]) : value;
 					}
 				}
 			} else {
 				// update one prop in one object
-				return obj[_key2] = value;
+				// If value is a function pass in the current state value as an argument
+				obj[_key2] = isFunction(value) ? value(obj[_key2]) : value;
 			}
 		} else if (path.length == 0) {
 			return obj;
@@ -653,6 +672,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 		// run subscriptions function every time state changes. Even with no render
 		app.runHandleSubs(appId);
+
 		if (!preventRender) {
 			app.reRender(changedStateKeys, sequenceId, appId, sequenceCache);
 		} else {
@@ -734,6 +754,7 @@ var createVNode = function createVNode(type, parentComponentIndex, data, level) 
 	var renderingSvg = arguments[8];
 	var block = arguments[9];
 	var blockProps = arguments[10];
+	var blockChild = arguments[11];
 
 
 	var props = {};
@@ -742,7 +763,7 @@ var createVNode = function createVNode(type, parentComponentIndex, data, level) 
 	for (var i = 0; i < elProps.length; i++) {
 		var prop = elProps[i];
 		var value = data[prop];
-		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : block ? value : '<span data="dangerously-set-innerHTML">' + value + '</span>';
+		props[prop] = isNull(value) ? '' : prop !== 'innerHTML' ? value : '<span data="dangerously-set-innerHTML">' + value + '</span>';
 	}
 
 	return {
@@ -759,7 +780,8 @@ var createVNode = function createVNode(type, parentComponentIndex, data, level) 
 		subscribesTo: subscribesTo,
 		dom: null,
 		block: block,
-		blockProps: blockProps
+		blockProps: blockProps,
+		blockChild: blockChild
 	};
 };
 
@@ -836,9 +858,9 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		// createElementObj args are :
 		// const createElementObj = (type, parentComponentIndex, id, data, level, key, parentComponentName, subscribesTo)
 		keyName = flags.key;
-		isKeyed = keyName !== false;
+		isKeyed = !!keyName;
 
-		vNode = createVNode(tagName, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg, block, blockProps);
+		vNode = createVNode(tagName, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg, block, blockProps, false);
 
 		if (renderProcess === 'creatingHydrationLayer') {
 			Object.keys(vNode.props).map(function (key) {
@@ -865,6 +887,9 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		if (isDefined(keyedParent)) {
 			if (rootIndex > keyedParentLevel) {
 				keyedParent.keyedChildren[keyedParent.keyedChildren.length] = vNode;
+				if (vNode.block) {
+					keyedParent.blockChild = true;
+				}
 			} else if (rootIndex === keyedParentLevel) {
 				keyedParent = undefined;
 				keyedParentLevel = undefined;
@@ -875,11 +900,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 			keyedParentLevel = rootIndex;
 			keyedParent = vNode;
 			vNode.keyedChildren = [];
-
-			if (isUndefined(keyedNodes[rootIndex])) {
-				keyedNodes[rootIndex] = {};
-			}
-			keyedNodes[rootIndex][keyName] = vNode;
+			keyedNodes[keyName] = vNode;
 		}
 
 		if (!voidedElements[tagName]) {
@@ -898,7 +919,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 		var viewRef = Object.keys(comp)[0];
 		var view = comp[viewRef];
-		var index = isUndefined(data.index) ? 0 : data.index;
+		var index = data.index || 0;
 
 		componentActiveArray[componentActiveArray.length] = viewRef;
 		componentActiveIndexArray[componentActiveIndexArray.length] = index;
@@ -951,7 +972,11 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 
 		// run view render function //
 		// merge local and global actions objects to pass to component
-		view(isDefined(propsFromState) ? Object.assign({}, data.props, propsFromState) : data.props, isDefined(localActions) || isDefined(appGlobalActions) ? Object.assign({}, localActions, appGlobalActions) : undefined, index)(nodeOpen, nodeClose, component, lazy, block);
+		view(isDefined(propsFromState) ? Object.assign({}, data.props, propsFromState) : data.props, isDefined(localActions) || isDefined(appGlobalActions) ? Object.assign({}, localActions, appGlobalActions) : undefined, index)(nodeOpen, nodeClose, {
+			component: component,
+			lazy: lazy,
+			block: block
+		});
 
 		subscribesToArray.length = subscribesToArray.length - 1;
 		componentActiveArray.length = componentActiveArray.length - 1;
@@ -1232,8 +1257,8 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 		if (isNull(objNew.keyedAction) && (isUndefined(objNew.blockProps) || objsAreEqual(objPrev.blockProps, objNew.blockProps))) {
 			return false;
 		} else {
-			if (objNew.keyedAction === 'insertOld' || objNew.keyedAction === 'swap') {
-				updateRenderObj(true, 'handleKeyedUpdate', objNew.keyedAction, objPrev.blockProps, objNew.blockProps, true);
+			if (objNew.keyedAction === 'insertOld') {
+				updateRenderObj(true, 'handleKeyedUpdate', 'insertOld', objPrev.blockProps, objNew.blockProps, true);
 			} else {
 				updateRenderObj(true, 'handleKeyedUpdate', 'runBlockUpdates', objPrev.blockProps, objNew.blockProps, true);
 			}
@@ -1368,7 +1393,6 @@ var shouldRenderNode = function shouldRenderNode(objPrev, objNew, nR, nodeReplac
 
 var updateChangedNode = function updateChangedNode(prop, value, node) {
 
-	// console.log(prop, value, node)
 	switch (prop) {
 
 		case 'class':
@@ -1467,295 +1491,148 @@ var emptyVNodeStatic = {
 	subscribesTo: null,
 	dom: null,
 	block: false,
-	blockProps: undefined
+	blockProps: undefined,
+	blockChild: false
 };
 
 var recycledVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recycled' });
-var recyclableVNodeStatic = Object.assign({}, emptyVNodeStatic, { keyedAction: 'recyclable' });
 
-// Algorithm for syncing prev vNode tree with new vNode tree
-// Each node in the vtree array needs to be compared to a node on the same level in the old tree
+function syncLists(oldList, newList, keyedNodes, keyedNodesPrev, blockCache) {
+
+	var newListSynced = [];
+	var oldListSynced = [];
+	var newHead = 0;
+	var oldHead = 0;
+	var newTail = newList.length - 1;
+	var oldTail = oldList.length - 1;
+
+	function triggerInsertionOfKeyedOrUnkeyedNode(prevNode, node) {
+		if (isDefined(node) && keyedNodesPrev[node.key]) {
+			node.keyedAction = 'insertOld';
+			newListSynced[newListSynced.length] = node;
+			oldListSynced[oldListSynced.length] = keyedNodesPrev[node.key];
+
+			var _syncLists = syncLists(keyedNodesPrev[node.key].keyedChildren, node.keyedChildren, keyedNodes, keyedNodesPrev),
+			    _syncLists2 = slicedToArray(_syncLists, 2),
+			    oldKeyedChildrenSynced = _syncLists2[0],
+			    newKeyedChildrenSynced = _syncLists2[1];
+
+			oldListSynced = oldListSynced.concat(oldKeyedChildrenSynced);
+			newListSynced = newListSynced.concat(newKeyedChildrenSynced);
+			oldHead = oldHead + (isDefined(prevNode) && isNotNull(prevNode.keyedChildren) ? prevNode.keyedChildren.length + 1 : 0);
+			newHead = newHead + node.keyedChildren.length + 1;
+			delete keyedNodesPrev[node.key];
+		} else {
+			node.keyedAction = 'insertNew';
+			newListSynced[newListSynced.length] = node;
+			oldListSynced[oldListSynced.length] = emptyVNodeStatic;
+			newHead++;
+		}
+	}
+
+	function triggerSkipOverOldRecycledKeyedNode(prevNode) {
+		newListSynced[newListSynced.length] = recycledVNodeStatic;
+		oldListSynced[oldListSynced.length] = prevNode;
+		oldHead = oldHead + prevNode.keyedChildren.length + 1;
+	}
+
+	function triggerRemovalOfKeyedNode(prevNode) {
+		newListSynced[newListSynced.length] = emptyVNodeStatic;
+		oldListSynced[oldListSynced.length] = prevNode;
+		oldHead = oldHead + prevNode.keyedChildren.length + 1;
+		removeKeyFromBlockCache(prevNode);
+	}
+
+	function triggerPropsCompareOfTwoEqualKeyedNodes(prevNode, node) {
+		node.keyedAction = 'updateAttrs';
+		newListSynced[newListSynced.length] = node;
+		oldListSynced[oldListSynced.length] = prevNode;
+		newHead++;
+		oldHead++;
+		delete keyedNodesPrev[node.key];
+	}
+
+	function removeKeyFromBlockCache(prevNode) {
+		if (prevNode.block) {
+			blockCache[prevNode.key] = false;
+		} else if (prevNode.blockChild) {
+			prevNode.keyedChildren.map(function (vNode) {
+				if (vNode.block) {
+					blockCache[vNode.key] = false;
+				}
+			});
+		}
+	}
+
+	function syncNode(prevNode, node) {
+
+		if (isUndefined(prevNode) || isDefined(node) && prevNode.level < node.level) {
+
+			if (node.key) {
+				triggerInsertionOfKeyedOrUnkeyedNode(prevNode, node);
+			} else {
+				oldListSynced[oldListSynced.length] = emptyVNodeStatic;
+				newListSynced[newListSynced.length] = node;
+				newHead++;
+			}
+		} else if (isUndefined(node) || isDefined(prevNode) && prevNode.level > node.level) {
+
+			if (prevNode.key && !keyedNodesPrev[prevNode.key] && keyedNodes[prevNode.key]) {
+				triggerSkipOverOldRecycledKeyedNode(prevNode);
+			} else {
+				newListSynced[newListSynced.length] = emptyVNodeStatic;
+				oldListSynced[oldListSynced.length] = prevNode;
+				oldHead++;
+				removeKeyFromBlockCache(prevNode);
+			}
+		} else {
+
+			if (prevNode.key) {
+				if (prevNode.key === node.key) {
+					triggerPropsCompareOfTwoEqualKeyedNodes(prevNode, node);
+				} else if (keyedNodes[prevNode.key]) {
+					triggerInsertionOfKeyedOrUnkeyedNode(prevNode, node);
+				} else {
+					triggerRemovalOfKeyedNode(prevNode, node);
+				}
+			} else if (node.key) {
+				// remove old unkeyed node
+				newListSynced[newListSynced.length] = emptyVNodeStatic;
+				oldListSynced[oldListSynced.length] = prevNode;
+				oldHead++;
+			} else {
+				newListSynced[newListSynced.length] = node;
+				oldListSynced[oldListSynced.length] = prevNode;
+				newHead++;
+				oldHead++;
+			}
+		}
+	}
+
+	while (newHead <= newTail || oldHead <= oldTail) {
+		syncNode(oldList[oldHead], newList[newHead]);
+	}
+
+	return [oldListSynced, newListSynced];
+}
+
+// Algorithm for syncing prev vNode array with new vNode array
+// Each node in the vNode array needs to be compared to a node on the same level in the old array
 var syncVNodes = function syncVNodes(domNodes, domNodesPrev, keyedNodes, keyedNodesPrev, blockCache) {
 
-	var prevNode = void 0;
-	var node = void 0;
-	var breakLoop = false;
+	var syncedLists = void 0;
 
 	if (domNodes.length === 0) {
-
 		for (var i = 0; i < domNodesPrev.length; i++) {
 			domNodes[i] = emptyVNodeStatic;
 		}
 	} else {
-		var _loop = function _loop(_i) {
-
-			prevNode = domNodesPrev[_i];
-			node = domNodes[_i];
-			breakLoop = false;
-
-			if (isUndefined(prevNode)) {
-				domNodesPrev[_i] = emptyVNodeStatic;
-			} else if (isUndefined(node)) {
-				domNodes[_i] = emptyVNodeStatic;
-			} else if (prevNode.level > node.level) {
-				domNodes.splice(_i, 0, emptyVNodeStatic);
-			} else if (prevNode.level < node.level) {
-				domNodesPrev.splice(_i, 0, emptyVNodeStatic);
-			}
-
-			if (_i === domNodes.length - 1) {
-				var remaining = domNodesPrev.length - domNodes.length;
-				if (remaining > 0) {
-					for (var x = 1; x <= remaining; x++) {
-						if (domNodesPrev[domNodes.length].block) {
-							blockCache[domNodesPrev[domNodes.length].key] = false;
-						}
-						domNodes[domNodes.length] = emptyVNodeStatic;
-						breakLoop = true;
-					}
-				}
-			}
-
-			prevNode = domNodesPrev[_i];
-			node = domNodes[_i];
-
-			////////////////////// KEYED NODES //////////////////////////
-			/////////////////////////////////////////////////////////////
-
-			// 1: Insert old keyed node
-			// {key: false, props: null} : {key: 'keyName'} or
-			// {key: 'keyName2', props: {}} : {key: 'keyName'} 
-			// Current node is keyed and prev node props is null or prev node is keyed but is not in prev pool (has been used already )
-			// Insert old keyed node (move from old location and insert) - the prev dom node does not exist (empty vnode) or has been moved already
-
-			// 2: Remove previous node
-			// {key: false, props: {} : {key: 'keyName'} or
-			// {key: 'keyName2', props: {}} : {key: 'keyName'} 
-			// Current node is keyed and prev node is not or prev node is keyed but not present in new pool (not part of new UI)
-			// For optimal performance we remove the previous node until we hit the next keyed node
-
-			// 3: Swap keyed nodes
-			// {key: 'keyName2'} : {key: 'keyName'} 
-			// Current node and prev nodes are keyed and both exist in the new pool (both make up part of the UI)
-			// swap the prev node with the current one
-
-			var keyedNodesPrevPool = keyedNodesPrev[node.level || prevNode.level];
-
-			if (isDefined(keyedNodesPrevPool)) {
-				// Check If existing pool of keyed Nodes - else skip
-
-				var isOldNodePresentInPrevKeyedPool = void 0;
-				var isOldNodePresentInNewKeyedPool = void 0;
-				var keyedParentLevel = void 0;
-
-				if (isNotFalse(node.key) && prevNode.key !== node.key) {
-					// New node is keyed
-
-					// Check if old node is keyed too, or if it is, if it still exists in the old pool. IF it does not
-					// exist in the old pool then it has already been reused and deleted from the pool. 
-					isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
-					// If old node is keyed - check if is it needed in the next rendered UI
-					isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[node.level]) ? false : isDefined(keyedNodes[node.level][prevNode.key]);
-
-					// Keep track of the highest most keyed parent.
-					// Any children of this keyed element need to be stored against the
-					// keyedChildren prop on the vNode
-					//////////////////////////////////////////////////////////////////////////////
-
-					if (node.level <= keyedParentLevel) {
-						keyedParentLevel = undefined;
-					}
-
-					keyedParentLevel = isDefined(keyedParentLevel) ? keyedParentLevel : node.level;
-
-					////////////////////////////////////////////
-					////////////////////////////////////////////
-
-					// Try to retrieve current keyed node from prev keyed pool
-					var prevKeyedNode = keyedNodesPrevPool[node.key];
-
-					// If undefined means it is a new node. If defined it exists in the DOM already and must be reused (recycled).          
-					if (isDefined(prevKeyedNode)) {
-
-						var addKeyedChildrenToOldTree = function addKeyedChildrenToOldTree() {
-							if (prevKeyedNode.keyedChildren.length > 0) {
-								var childrenCount = 0;
-								while (isDefined(domNodesPrev[_i + childrenCount + 1]) && domNodesPrev[_i + childrenCount + 1].level > keyedParentLevel) {
-									childrenCount++;
-								}
-								domNodesPrev.splice.apply(domNodesPrev, [_i + 1, childrenCount].concat(toConsumableArray(prevKeyedNode.keyedChildren)));
-							}
-						};
-
-						// 1: Insert old (recycled) keyed node
-						////////////////////////////////
-						if (isNull(prevNode.props) || isNotFalse(prevNode.key) && !isOldNodePresentInPrevKeyedPool) {
-							// prev node is empty or has already been used already so we can replace the vNode with 
-							// the prevKeyedNode vNode for comparison of attributes.
-							domNodesPrev[_i] = prevKeyedNode;
-							node.keyedAction = 'insertOld'; // set action for use in patch function
-							// match all children of keyed parent node with their old vNodes counterparts
-							addKeyedChildrenToOldTree();
-						}
-						// 2: Remove previous node (keyed or non-keyed)
-						//////////////////////////////////////////////////////////
-						else if (isFalse(prevNode.key) || !isOldNodePresentInNewKeyedPool) {
-								if (prevNode.block) {
-									blockCache[prevNode.key] = false;
-								}
-								domNodes.splice(_i, 0, emptyVNodeStatic);
-								node = domNodes[_i];
-							}
-							// 3: Swap keyed nodes
-							//////////////////////
-							else {
-									domNodesPrev[_i] = prevKeyedNode;
-									node.keyedAction = 'swap';
-									// match all children of keyed parent node with their old vNodes counterparts
-									addKeyedChildrenToOldTree();
-								}
-						// once keyed node has been reused remove it from pool
-						delete keyedNodesPrevPool[node.key];
-
-						// Insert a new keyed node.
-						//////////////////////////
-					} else {
-						if (isNull(prevNode.props)) {
-							domNodesPrev[_i] = emptyVNodeStatic;
-						} else {
-							domNodesPrev.splice(_i, 0, emptyVNodeStatic);
-						}
-						node.keyedAction = 'insertNew';
-					}
-				}
-
-				//if keys match we still want to update any props that might have changed
-				else if (isNotFalse(node.key) && prevNode.key === node.key) {
-						node.keyedAction = 'updateAttrs';
-					}
-
-					// 1: Insert new unkeyed node
-					// {key: 'keyName'} : {key: false, props: {}}
-					// Prev is keyed and is present in the prevKeyed pool (hasn't been used yet) and is present in newPool (will be rendered in current UI)
-					// Action - splice empty node in prevNodesArray and change node.keyedAction to 'insertNew' 
-					// This will insert the node at the index of the current keyed node and push the prev keyed node down until it either reaches
-					// its match in the new nodes array or a diff element where another action takes place
-
-					// 2: Ignore recycled key node
-					// {key: 'keyName'} : {key: false, props: {}}
-					// Prev is keyed and is NOT present in the prevKeyed pool (has already been used) and is present in newPool (has been been rendered in current UI)
-					// Prev node has been moved to another position in the DOM already ie. has been 'recycled'
-					// Action - splice a new empty node into the current nodes array stating this
-					// Reconciler will ignore these nodes and decrement the dom child index
-					// synced nodes = {key: 'keyName'} : {key: 'keyName, keyedAction: 'recycled', props: null}
-
-					// 3: Remove old keyed node
-					// {key: 'keyName'} : {key: false, props: {}}
-					// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
-					// Action - Prev keyed node can be removed as it doesn't make up part of the UI anymore
-					// Remove prev keyed node from dom
-
-					// 4: Remove old keyed node 
-					// {key: 'keyName'} : {key: false, props: null}
-					// Prev is keyed and is NOT present in newPool (will NOT be rendered in current UI)
-					// Action - remove prev keyed node from dom
-
-					// 5: Recycle old keyed node 
-					// {key: 'keyName'} : {key: false, props: null}
-					// Prev is keyed and is present in newPool (will be rendered in current UI)
-					// Action - change node.keyedAction to 'recycle'
-					// Skip over this as the node will be used later on
-
-
-					else if (isNotFalse(prevNode.key) && prevNode.key !== node.key) {
-							// Old node is keyed
-
-							isOldNodePresentInPrevKeyedPool = isDefined(keyedNodesPrevPool[prevNode.key]);
-							isOldNodePresentInNewKeyedPool = isUndefined(keyedNodes[prevNode.level]) ? false : isDefined(keyedNodes[prevNode.level][prevNode.key]);
-
-							var removeKeyedChildrenFromOldTree = function removeKeyedChildrenFromOldTree() {
-								if (prevNode.keyedChildren.length > 0) {
-									var childrenCount = 0;
-									while (isDefined(domNodesPrev[_i + childrenCount + 1]) && domNodesPrev[_i + childrenCount + 1].level > prevNode.level) {
-										childrenCount++;
-									}
-									domNodesPrev.splice(_i + 1, childrenCount);
-								}
-							};
-
-							if (isNotNull(node.props)) {
-								// 1: Insert New keyed/unkeyed node
-								/////////////////////////////
-								if (isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
-									domNodesPrev.splice(_i, 0, emptyVNodeStatic);
-									node.keyedAction = 'insertNew';
-									removeKeyedChildrenFromOldTree();
-								}
-								// 2: Ignore recycled keyed node (has already been used)
-								///////////////////////////////
-								else if (!isOldNodePresentInPrevKeyedPool && isOldNodePresentInNewKeyedPool) {
-										domNodes.splice(_i, 0, recycledVNodeStatic);
-										removeKeyedChildrenFromOldTree();
-									}
-									// 3: Remove old keyed node
-									//////////////////////////////////////////////
-									else if (!isOldNodePresentInNewKeyedPool) {
-											// no need to remove children of keyed node from tree as the nodeRemovedFlag 
-											// in 'CreateView' is being used to skip over these
-											if (prevNode.block) {
-												blockCache[prevNode.key] = false;
-											}
-
-											domNodes.splice(_i, 0, emptyVNodeStatic);
-											node = domNodes[_i];
-										}
-							} else {
-								// 4: Remove old keyed node 
-								///////////////////////////
-								if (!isOldNodePresentInNewKeyedPool) {
-									// no need to remove children of keyed node from tree as the nodeRemovedFlag 
-									// in 'CreateView' is being used to skip over these
-									if (prevNode.block) {
-										blockCache[prevNode.key] = false;
-									}
-									domNodes.splice(_i, 0, emptyVNodeStatic);
-									node = domNodes[_i];
-								}
-								// 5: Mark old keyed node as Recyclable
-								////////////////////////////
-								else {
-										domNodes[_i] = recyclableVNodeStatic;
-										removeKeyedChildrenFromOldTree();
-									}
-							}
-						}
-			}
-			// Ensure new keyed nodes are always inserted even when there is no pool of previously keyed nodes
-			else if (node.key) {
-					if (isNull(prevNode.props)) {
-						domNodesPrev[_i] = emptyVNodeStatic;
-					} else {
-						if (_i === domNodesPrev.length - 1) {
-							domNodes[domNodes.length] = emptyVNodeStatic;
-						}
-						domNodesPrev.splice(_i, 0, emptyVNodeStatic);
-					}
-					node.keyedAction = 'insertNew';
-				}
-
-			if (breakLoop && domNodes.length === domNodesPrev.length) return 'break';
-		};
-
-		for (var _i = 0; _i < domNodes.length; _i++) {
-			var _ret = _loop(_i);
-
-			if (_ret === 'break') break;
-		}
+		syncedLists = syncLists(domNodesPrev, domNodes, keyedNodes, keyedNodesPrev, blockCache);
 	}
 
 	return {
-		domNodes: domNodes,
-		domNodesPrev: domNodesPrev
+		domNodes: syncedLists[1],
+		domNodesPrev: syncedLists[0]
 	};
 };
 
@@ -2008,7 +1885,7 @@ var patch = function patch() {
 								updateBlockProperties(renderNode);
 							}
 						}
-					} else if (keyedAction === 'swap' || isDefined(currentDomNode) && !currentDomNode.isEqualNode(recycledDomNode)) {
+					} else if (isDefined(currentDomNode) && !currentDomNode.isEqualNode(recycledDomNode)) {
 						swapElements($_parentNode, currentDomNode, recycledDomNode);
 						keyedNodeRecycleBin[node.key] = true;
 						domOpsCount++;
@@ -2270,15 +2147,17 @@ var createString = function createString(vDomNodes) {
 	return htmlString;
 };
 
-var vdomNodeBuilder = void 0;
+var vDomNodeBuilder = void 0;
 var vDomNodesArrayPrevious = [];
 
-var renderString = function renderString(appView, runTime, appGlobalActions, appId, asyncResolve) {
+var renderString = function renderString(karbon, appId) {
 
-	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
-	var nodeBuilderInstance = vdomNodeBuilder[appId];
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() }, 'toString');
+	var runTime = karbon.runTime[appId];
+	var asyncResolve = karbon.toStringAsyncResolve[appId];
+	vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, karbon.appGlobalActions[appId]);
+	var nodeBuilderInstance = vDomNodeBuilder[appId];
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView: karbon.appView[appId] }, { props: runTime.getState() }, 'toString');
 
 	if (asyncResolve && nodeBuilderInstance.getLazyCount() === 0) {
 		asyncResolve(createString(nodeBuilderInstance.getVDomNodesArray()));
@@ -2289,50 +2168,233 @@ var renderString = function renderString(appView, runTime, appGlobalActions, app
 	}
 };
 
-var hydrateApp = function hydrateApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, appId, sequenceCache) {
+var hydrateApp = function hydrateApp(karbon, appId, firstRender, changedStateKeys, sequenceId, sequenceCache) {
 
-	vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-	vdomNodeBuilder[appId] = isDefined(vdomNodeBuilder[appId]) ? vdomNodeBuilder[appId] : nodeBuilder(runTime, appGlobalActions);
-	var nodeBuilderInstance = vdomNodeBuilder[appId];
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() }, 'creatingHydrationLayer');
+	var runTime = karbon.runTime[appId];
+	vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+	vDomNodeBuilder[appId] = isDefined(vDomNodeBuilder[appId]) ? vDomNodeBuilder[appId] : nodeBuilder(runTime, karbon.appGlobalActions[appId]);
+	var nodeBuilderInstance = vDomNodeBuilder[appId];
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView: karbon.appView[appId] }, { props: runTime.getState() }, 'creatingHydrationLayer');
 
 	if (nodeBuilderInstance.getLazyCount() !== 0) {
 		nodeBuilderInstance.resetVDomNodesArray();
 	} else {
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 
-		renderApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, appId, sequenceCache, true);
+		renderApp(karbon, appId, firstRender, changedStateKeys, sequenceId, sequenceCache, true);
 	}
 };
 
-var renderApp = function renderApp(appContainer, appView, runTime, appGlobalActions, appOnInit, changedStateKeys, sequenceId, firstRender, appId, sequenceCache, isHydrating) {
+var renderApp = function renderApp(karbon, appId, firstRender, changedStateKeys, sequenceId, sequenceCache, isHydrating) {
 
+	var runTime = karbon.runTime[appId];
+	var globalActions = karbon.appGlobalActions[appId];
+	var appInit = karbon.appOnInit[appId];
 	var nodeBuilderInstance = void 0;
 
 	if (!firstRender || isHydrating) {
-		nodeBuilderInstance = vdomNodeBuilder[appId];
+		nodeBuilderInstance = vDomNodeBuilder[appId];
 		vDomNodesArrayPrevious = nodeBuilderInstance.getVDomNodesArray().slice(0);
 		nodeBuilderInstance.resetVDomNodesArray();
 	} else {
-		vdomNodeBuilder = isDefined(vdomNodeBuilder) ? vdomNodeBuilder : {};
-		vdomNodeBuilder[appId] = nodeBuilder(runTime, appGlobalActions);
-		nodeBuilderInstance = vdomNodeBuilder[appId];
+		vDomNodeBuilder = isDefined(vDomNodeBuilder) ? vDomNodeBuilder : {};
+		vDomNodeBuilder[appId] = nodeBuilder(runTime, globalActions);
+		nodeBuilderInstance = vDomNodeBuilder[appId];
 		virtualDom.setInitialized(false);
 		virtualDom.setSync(false);
 	}
 
 	nodeBuilderInstance.setKeyedNodesPrev();
-	nodeBuilderInstance.renderRootComponent({ $$_appRootView: appView }, { props: runTime.getState() }, 'toDom');
+	nodeBuilderInstance.renderRootComponent({ $$_appRootView: karbon.appView[appId] }, { props: runTime.getState() }, 'toDom');
 
-	createView(appContainer, nodeBuilderInstance.getVDomNodesArray(), vDomNodesArrayPrevious, changedStateKeys, nodeBuilderInstance.getKeyedNodes(), nodeBuilderInstance.getKeyedNodesPrev(), isHydrating, nodeBuilderInstance.getBlockCache());
+	createView(karbon.appContainer[appId], nodeBuilderInstance.getVDomNodesArray(), vDomNodesArrayPrevious, changedStateKeys, nodeBuilderInstance.getKeyedNodes(), nodeBuilderInstance.getKeyedNodesPrev(), isHydrating, nodeBuilderInstance.getBlockCache());
 
 	if (!firstRender && !isHydrating) {
 		runTime.exeQueuedMsgs(undefined, sequenceId, undefined, sequenceCache);
 	} else {
-		if (isFunction(appOnInit)) appOnInit(appGlobalActions);
+		if (isFunction(appInit)) appInit(globalActions);
 		virtualDom.setInitialized(true);
 		virtualDom.setSync(true);
 	}
+};
+
+var globalActions = function globalActions(actions, runTime) {
+
+  var globalActions = {};
+
+  var injectActions = function injectActions(actionsObj) {
+    var actionsKeys = Object.keys(actionsObj);
+    var actionsName = actionsKeys[0];
+    globalActions[actionsName] = actionsObj[actionsName]({ stamp: runTime.stamp, msgs: runTime.messages });
+  };
+
+  if (isDefined(actions)) {
+    if (isArray(actions)) {
+      for (var i = 0; i < actions.length; i++) {
+        injectActions(actions[i]);
+      }
+    } else {
+      injectActions(actions);
+    }
+    return globalActions;
+  }
+};
+
+var subscription = function () {
+
+	var cache = {};
+
+	var getCache = function getCache() {
+		return cache;
+	};
+
+	var setCache = function setCache(key, value) {
+		cache[key] = value;
+	};
+
+	var addEvent = function addEvent(el, name, functRef, funct) {
+		var args = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : [];
+
+		cache[functRef] = {
+			fun: function fun(event) {
+				funct.apply(null, [].concat(toConsumableArray(args), [event]));
+			},
+			el: el,
+			name: name
+		};
+		el.addEventListener(name, cache[functRef].fun);
+	};
+
+	var removeEvent = function removeEvent(el, name, functRef) {
+		el.removeEventListener(name, cache[functRef].fun);
+		delete cache[functRef];
+	};
+
+	return {
+		addEvent: addEvent,
+		removeEvent: removeEvent,
+		getCache: getCache,
+		setCache: setCache
+	};
+}();
+
+var handleSubscriptions = function handleSubscriptions(subs, appId, appTap) {
+
+  /* START.DEV_ONLY */
+  var subsStatus = [];
+  /* END.DEV_ONLY */
+
+  var _loop = function _loop(i) {
+
+    var sub = subs[i];
+    var action = isArray(sub.action) ? sub.action[0] : sub.action;
+    var cache = subscription.getCache();
+
+    if (sub.action && isUndefined(action.name)) {
+      Object.defineProperty(action.prototype, 'name', {
+        get: function get$$1() {
+          return (/function ([^(]*)/.exec(this + '')[1]
+          );
+        }
+      });
+    }
+
+    action = isArray(sub.action) ? function () {
+      var _sub$action;
+
+      return (_sub$action = sub.action)[0].apply(_sub$action, toConsumableArray(sub.action.slice(1)));
+    } : sub.action;
+    var subKey = sub.key || action.name + '_' + (sub.name || 'sub-key').toString().replace(/\s/g, '');
+    sub.key = subKey;
+
+    /* START.DEV_ONLY */
+    if (isNullorUndef(subKey)) {
+      console.warn('Please add an explicit id ({id: "identifierName"}) to subscription obj due to action.name not being supported by this browser');
+    }
+    /* END.DEV_ONLY */
+
+    if (!sub.name) {
+
+      // this subscription action is called whenever the state changes
+      if (isUndefined(sub.when)) {
+        action();
+      }
+      // this subscription action is called once whenever the state changes and the 'when' condition is met
+      else if (sub.when) {
+          if (!cache[sub.key]) {
+            cache[sub.key] = true;
+            action();
+          }
+        }
+        // this subscription action is called once whenever the state changes and the 'when' condition is not met
+        else {
+            if (cache[sub.key]) {
+              delete cache[sub.key];
+            }
+          }
+    }
+    // function denoted user or custom sub
+    else if (isFunction(sub.name)) {
+
+        if (sub.when || isUndefined(sub.when)) {
+          if (isUndefined(cache[sub.key])) {
+            subscription.setCache(sub.key, {
+              unmount: sub.name(action, sub.options)
+            });
+          }
+        } else {
+          var cachedSub = cache[sub.key];
+          if (cachedSub) {
+            if (isFunction(cachedSub.unmount)) {
+              cachedSub.unmount();
+            }
+            delete cache[sub.key];
+          }
+        }
+
+        /* START.DEV_ONLY */
+        if (isDefined(appTap[appId].subscriptions)) {
+          subsStatus.push({ name: sub.name.name, active: isNullorUndef(sub.when) ? true : sub.when, action: action.name });
+        }
+        /* END.DEV_ONLY */
+      }
+      // string denotes event sub
+      else if (isString(sub.name)) {
+
+          if (sub.when || isUndefined(sub.when)) {
+
+            if (!isDefined(subscription.getCache()[subKey])) {
+
+              subscription.addEvent(sub.el || window, sub.name, subKey, action, isArray(sub.action) ? sub.action.slice(1) : undefined);
+
+              /* START.DEV_ONLY */
+              if (isDefined(appTap[appId].subscriptions)) {
+                subsStatus.push({ name: sub.name, active: true, action: action.name });
+              }
+              /* END.DEV_ONLY */
+            }
+          } else if (isDefined(subscription.getCache()[subKey])) {
+
+            subscription.removeEvent(sub.el || window, sub.name, subKey);
+
+            /* START.DEV_ONLY */
+            if (isDefined(appTap[appId].subscriptions)) {
+              subsStatus.push({ name: sub.name, active: false, action: action.name });
+            }
+            /* END.DEV_ONLY */
+          }
+        }
+  };
+
+  for (var i = 0; i < subs.length; i++) {
+    _loop(i);
+  }
+
+  /* START.DEV_ONLY */
+  if (isDefined(appTap[appId].subscriptions)) {
+    appTap[appId].subscriptions({ subs: subsStatus });
+  }
+  /* END.DEV_ONLY */
 };
 
 /* eslint-disable no-console */
@@ -2341,14 +2403,10 @@ var karbon = function () {
 	return {
 
 		runTime: {},
-		appRootComponent: {},
-		appRootActions: {},
 		appContainer: {},
 		appView: {},
 		appGlobalActions: {},
-		appRootSubscribe: {},
 		appSubs: {},
-		appFx: {},
 		appOnInit: {},
 		renderToString: {},
 		toStringAsyncResolve: {},
@@ -2384,7 +2442,6 @@ var karbon = function () {
 			this.appCounter++;
 
 			var appId = this.appCounter;
-
 			this.renderToString[appId] = renderToString;
 			this.toStringAsyncResolve[appId] = asyncStringResolve;
 			this.process[appId] = process;
@@ -2397,7 +2454,6 @@ var karbon = function () {
 			}
 			/* END.DEV_ONLY */
 
-			this.appFx[appId] = appConfigObj.effects;
 			this.appSubs[appId] = appConfigObj.subscriptions;
 			/* START.DEV_ONLY */
 			this.appTap[appId] = appConfigObj.tap || {};
@@ -2419,141 +2475,25 @@ var karbon = function () {
 			/* END.DEV_ONLY */
 
 			if (renderToString) {
-
-				return renderString(this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], appId, this.toStringAsyncResolve[appId]);
+				return renderString(this, appId);
 			} else if (this.process[appId] === 'hydrate') {
-
 				// hydration only happens once - update 'process' to ensure dom is rendered on future state changes
 				this.process[appId] = 'render';
 
-				hydrateApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], undefined, //	changedStateKeys
-				undefined, //sequenceId
-				true, // firstRender
-				appId);
+				hydrateApp(this, appId, true // firstRender
+				);
 			} else {
-
 				this.appContainer[appId].innerHTML = '';
 
-				renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], undefined, //	changedStateKeys
-				undefined, //sequenceId
-				true, // firstRender
-				appId);
+				renderApp(this, appId, true // firstRender				
+				);
 			}
-			// }
 		},
 		initGlobalActions: function initGlobalActions(actions, runTime) {
-
-			var globalActions = {};
-
-			var injectActions = function injectActions(actionsObj) {
-				var actionsKeys = Object.keys(actionsObj);
-				var actionsName = actionsKeys[0];
-				globalActions[actionsName] = actionsObj[actionsName]({ stamp: runTime.stamp, msgs: runTime.messages });
-			};
-
-			if (isDefined(actions)) {
-				if (isArray(actions)) {
-					for (var i = 0; i < actions.length; i++) {
-						injectActions(actions[i]);
-					}
-				} else {
-					injectActions(actions);
-				}
-				return globalActions;
-			}
+			return globalActions(actions, runTime);
 		},
 		handleSubs: function handleSubs(subs, appId) {
-
-			/* START.DEV_ONLY */
-			var subsStatus = [];
-			/* END.DEV_ONLY */
-
-			for (var i = 0; i < subs.length; i++) {
-
-				var sub = subs[i];
-				var action = isArray(sub.action) ? sub.action[0] : sub.action;
-
-				if (isUndefined(action.name)) {
-					Object.defineProperty(action.prototype, 'name', {
-						get: function get$$1() {
-							return (/function ([^(]*)/.exec(this + '')[1]
-							);
-						}
-					});
-				}
-
-				var subId = sub.id || action.name + '_' + sub.name.toString().replace(/\s/g, '');
-
-				/* START.DEV_ONLY */
-				if (isNullorUndef(subId)) {
-					console.warn('Please add an explicit id ({id: "identifierName"}) to subscription obj due to action.name not being supported by this browser');
-				}
-				/* END.DEV_ONLY */
-
-				// function denoted user or custom sub
-				if (isFunction(sub.name)) {
-
-					sub.name({
-						opts: sub.options,
-						action: action,
-						actionArgs: isArray(sub.action) ? sub.action.slice(1) : [],
-						condition: isNullorUndef(sub.when) ? true : sub.when,
-						subId: subId,
-						subCache: subscription.getCache()
-					});
-
-					/* START.DEV_ONLY */
-					if (isDefined(this.appTap[appId].subscriptions)) {
-						subsStatus.push({ name: sub.name.name, active: isNullorUndef(sub.when) ? true : sub.when, action: action.name });
-					}
-					/* END.DEV_ONLY */
-
-					// string denotes event sub
-				} else if (isString(sub.name)) {
-
-					if (sub.when || isUndefined(sub.when)) {
-						if (isDefined(sub.name)) {
-							if (!isDefined(subscription.getCache()[subId])) {
-
-								subscription.add(sub.el || window, sub.name, subId, action, isArray(sub.action) ? sub.action.slice(1) : undefined);
-							}
-						} else {
-							// this subscription action is called whenever the state changes
-							if (isArray(sub.action)) {
-								var _sub$action;
-
-								(_sub$action = sub.action)[0].apply(_sub$action, toConsumableArray(sub.action.slice(1)));
-							} else {
-								sub.action();
-							}
-						}
-
-						/* START.DEV_ONLY */
-						if (isDefined(this.appTap[appId].subscriptions)) {
-							subsStatus.push({ name: sub.name, active: true, action: action.name });
-						}
-						/* END.DEV_ONLY */
-					} else if (!sub.when) {
-						if (isDefined(sub.name)) {
-							if (isDefined(subscription.getCache()[subId])) {
-								subscription.remove(sub.el || window, sub.name, subId);
-							}
-						}
-
-						/* START.DEV_ONLY */
-						if (isDefined(this.appTap[appId].subscriptions)) {
-							subsStatus.push({ name: sub.name, active: false, action: action.name });
-						}
-						/* END.DEV_ONLY */
-					}
-				}
-			}
-
-			/* START.DEV_ONLY */
-			if (isDefined(this.appTap[appId].subscriptions)) {
-				this.appTap[appId].subscriptions({ subs: subsStatus });
-			}
-			/* END.DEV_ONLY */
+			handleSubscriptions(subs, appId, this.appTap);
 		},
 		runHandleSubs: function runHandleSubs(appId) {
 			if (isFunction(this.appSubs[appId])) {
@@ -2563,16 +2503,13 @@ var karbon = function () {
 		reRender: function reRender(changedStateKeys, sequenceId, appId, sequenceCache, creatingHydrationLayer) {
 
 			if (creatingHydrationLayer) {
-				hydrateApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], this.appOnInit[appId], undefined, //	changedStateKeys
-				undefined, // sequenceId
-				true, // firstRender
-				appId);
+				hydrateApp(this, appId, true // firstRender
+				);
 			} else if (this.process[appId] === 'render') {
-				renderApp(this.appContainer[appId], this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], undefined, //onInit
-				changedStateKeys, sequenceId, false, // firstRender
-				appId, sequenceCache);
+				renderApp(this, appId, false, // firstRender
+				changedStateKeys, sequenceId, sequenceCache);
 			} else if (this.renderToString[appId] && this.process[appId] === 'toStringAsync') {
-				renderString(this.appView[appId], this.runTime[appId], this.appGlobalActions[appId], appId, this.toStringAsyncResolve[appId]);
+				renderString(this, appId);
 			}
 		}
 	};
@@ -2583,24 +2520,17 @@ var hydrate = void 0;
 var toString = void 0;
 var toStringAsync = void 0;
 
-if (isBrowser()) {
-	if (document.currentScript && 'noModule' in document.currentScript) {
-		render = karbon.render.bind(karbon);
-		hydrate = karbon.hydrate.bind(karbon);
-		toString = karbon.toString.bind(karbon);
-		toStringAsync = karbon.toStringAsync.bind(karbon);
-	} else {
-		window.karbon = {};
-		window.karbon.render = karbon.render.bind(karbon);
-		window.karbon.hydrate = karbon.hydrate.bind(karbon);
-		window.karbon.toString = karbon.toString.bind(karbon);
-		window.karbon.toStringAsync = karbon.toStringAsync.bind(karbon);
-	}
+if (isBrowser() && document.currentScript && 'noModule' in document.currentScript || !isBrowser()) {
+  render = karbon.render.bind(karbon);
+  hydrate = karbon.hydrate.bind(karbon);
+  toString = karbon.toString.bind(karbon);
+  toStringAsync = karbon.toStringAsync.bind(karbon);
 } else {
-	render = karbon.render.bind(karbon);
-	hydrate = karbon.hydrate.bind(karbon);
-	toString = karbon.toString.bind(karbon);
-	toStringAsync = karbon.toStringAsync.bind(karbon);
+  window.karbon = {};
+  window.karbon.render = karbon.render.bind(karbon);
+  window.karbon.hydrate = karbon.hydrate.bind(karbon);
+  window.karbon.toString = karbon.toString.bind(karbon);
+  window.karbon.toStringAsync = karbon.toStringAsync.bind(karbon);
 }
 
 export { render, hydrate, toString, toStringAsync };
