@@ -43,7 +43,7 @@ const app = {
   }
 };
 
-run(app)
+render(app)
 ```
 
 Karbon is a single state application framework. This means that the whole app is driven from one global state (think Redux, Elm etc.). All components are stateless and are only responsible for generating virtual nodes which get converted into DOM elements by the app runtime.
@@ -56,7 +56,7 @@ On the most basic level an app is an object which must consist of at least the f
 
 The app object will then get passed to the run function which will mount our app to the dom.
 
-If Karbon is being used on a traditional webpage we can easily implement multiple apps on a single page if needed. Simply pass multiple app objects to the run function.
+If Karbon is being used on a traditional webpage we can easily implement multiple apps on a single page if needed. Simply invoke the render function passing in the app object.
 
 ```js
 import { run } from karbon;
@@ -65,7 +65,9 @@ const app1 = {...};
 const app2 = {...};
 const app3 = {...};
 
-run(app1, app2, app3)
+render(app1)
+render(app2)
+render(app3)
 ```
 
 **Container**
