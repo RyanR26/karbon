@@ -126,7 +126,7 @@ export const createRunTime = (app, appId) => {
 			const renderFlags = msgArray[2] || {};
 
 			/* START.DEV_ONLY */
-			if (isDefined(appTap.message))	appTap.message({msg: msgArray, sequenceId, input: data});
+			if (isDefined(appTap.message)) appTap.message({msg: msgArray, sequenceId, input: data});
 			/* END.DEV_ONLY */
 			
 			// msgArray[0] === msgType
@@ -199,7 +199,7 @@ export const createRunTime = (app, appId) => {
 				break;
 
 			case 'control': {
-
+        
         const condition = !!msgPayload.if;
         const conditionPayloadIsArray = isArray(msgPayload[condition]);
         const conditionPayload = conditionPayloadIsArray ? msgPayload[condition][0] : msgPayload[condition];

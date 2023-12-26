@@ -13,7 +13,7 @@ export const handleSubscriptions = (subs, appId, appTap) => {
     let action = isArray(sub.action) ? sub.action[0] : sub.action;
     const cache = subscription.getCache();
 
-    if (isUndefined(action.name)) {
+    if (sub.action && isUndefined(action.name)) {
       Object.defineProperty(action.prototype, 'name', {
         get: function () {
           return /function ([^(]*)/.exec(this + '')[1];
@@ -33,14 +33,19 @@ export const handleSubscriptions = (subs, appId, appTap) => {
 
     if (!sub.name) {
 
-      if (sub.when) {
-        // this subscription action is called whenever the state changes
+      // this subscription action is called whenever the state changes
+      if (isUndefined(sub.when)) { 
+        action();
+      }
+       // this subscription action is called once whenever the state changes and the 'when' condition is met
+      else if (sub.when) {
         if (!cache[sub.key]) {
           cache[sub.key] = true;
           action();
         }
       } 
-      else {
+      // this subscription action is called once whenever the state changes and the 'when' condition is not met
+      else { 
         if (cache[sub.key]) {
           delete cache[sub.key];
         }
