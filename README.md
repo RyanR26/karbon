@@ -31,7 +31,7 @@ It has zero-dependencies and does not require compilation or tooling. It can sim
  
  Basic example
 ```js
-import { run } from karbon;
+import { render } from karbon;
  
 const app = {
   container: document.getElementById('app'),
@@ -59,7 +59,7 @@ The app object will then get passed to the run function which will mount our app
 If Karbon is being used on a traditional webpage we can easily implement multiple apps on a single page if needed. Simply invoke the render function passing in the app object.
 
 ```js
-import { run } from karbon;
+import { render } from karbon;
  
 const app1 = {...};
 const app2 = {...};
