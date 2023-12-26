@@ -34,7 +34,7 @@ It has zero-dependencies and does not require compilation or tooling. It can sim
 import { render } from karbon;
  
 const app = {
-  container: document.getElementById('app'),
+  container: document => document.getElementById('app'),
   state: {
     name: 'Ryan'
   },
