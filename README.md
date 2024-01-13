@@ -1,5 +1,6 @@
 
 <h2><a href="https://github.com/RyanR26/karbon">Karbon</a></h2>
+<p><i>Docs in progress...</i></p>
 
 A **unique** framework for creating user interfaces *(MIT Licensed)*
 
