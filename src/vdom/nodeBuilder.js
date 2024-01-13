@@ -243,7 +243,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 							lazyCache[cacheKey] = [lazyComponent, module];
 							runTime.forceReRender(creatingHydrationLayer);
 							if (isBrowser() && !creatingHydrationLayer) {
-								window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+								window.dispatchEvent(new CustomEvent('Lazy_View_Rendered', { detail: { key: cacheKey } }));
 							}
 						}, time || 0);
 					})
@@ -252,7 +252,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 						lazyCache[cacheKey] = 'error';
 						runTime.forceReRender(creatingHydrationLayer);
 						if (isBrowser() && !creatingHydrationLayer) {
-							window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+							window.dispatchEvent(new CustomEvent('Lazy_View_Error', { detail: { key: cacheKey } }));
 						}
             
 					});
