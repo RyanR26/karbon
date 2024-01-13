@@ -1,21 +1,6 @@
 import { karbon } from './core/index.js';
-import { isBrowser } from './utils/utils';
 
-export let render; 
-export let hydrate;
-export let toString;
-export let toStringAsync;
-
-if ((isBrowser() && (document.currentScript && 'noModule' in document.currentScript)) || !isBrowser()) {
-	render = karbon.render.bind(karbon);
-	hydrate = karbon.hydrate.bind(karbon);
-	toString = karbon.toString.bind(karbon);
-	toStringAsync = karbon.toStringAsync.bind(karbon);
-} 
-else {
-  window.karbon = {};
-  window.karbon.render = karbon.render.bind(karbon);
-  window.karbon.hydrate = karbon.hydrate.bind(karbon);
-  window.karbon.toString = karbon.toString.bind(karbon);
-  window.karbon.toStringAsync = karbon.toStringAsync.bind(karbon);
-}
+export const render = karbon.render.bind(karbon); 
+export const hydrate = karbon.hydrate.bind(karbon);
+export const toString = karbon.toString.bind(karbon);
+export const toStringAsync = karbon.toStringAsync.bind(karbon);

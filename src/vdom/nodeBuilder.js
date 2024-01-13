@@ -222,9 +222,13 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			if (isFunction(error)) error();
 		}
 		else if (isDefined(lazyCache[cacheKey])) {
-			const lazy = lazyCache[cacheKey][0];
-			if (lazyCount > 0 && lazyCache[cacheKey] !== 'loading') lazyCount --;
-			if (isFunction(lazy)) lazy(lazyCache[cacheKey][1]);
+      if (lazyCache[cacheKey] === 'loading') {
+        if (isFunction(loading)) loading();
+      } else {
+        const lazy = lazyCache[cacheKey][0];
+        if (lazyCount > 0) lazyCount --;
+        if (isFunction(lazy)) lazy(lazyCache[cacheKey][1]);  
+      }
 		} 
 		else {
 			if (lazyCache[cacheKey] !== 'loading') {
@@ -239,7 +243,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 							lazyCache[cacheKey] = [lazyComponent, module];
 							runTime.forceReRender(creatingHydrationLayer);
 							if (isBrowser() && !creatingHydrationLayer) {
-								window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+								window.dispatchEvent(new CustomEvent('Lazy_View_Rendered', { detail: { key: cacheKey } }));
 							}
 						}, time || 0);
 					})
@@ -248,7 +252,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 						lazyCache[cacheKey] = 'error';
 						runTime.forceReRender(creatingHydrationLayer);
 						if (isBrowser() && !creatingHydrationLayer) {
-							window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+							window.dispatchEvent(new CustomEvent('Lazy_View_Error', { detail: { key: cacheKey } }));
 						}
             
 					});
@@ -279,7 +283,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		}
 
 		creatingBlock = false; 
-		nodeOpen(tag, {}, { key }, block, props);
+		nodeOpen(tag, { id: `${key}-block`, class: 'karbon-block' }, { key }, block, props);
 		// if creating string render children inside block containing element
 		if (renderProcess === 'toString') {
 			view(props);
