@@ -44,6 +44,48 @@ const configs = {
 		]
 	},
 
+
+  inlineDev: {
+		input: 'src/index.js',
+		output: {
+      name: 'karbon',
+			file: 'dist/karbon.iife.js',
+			format: 'iife',
+			sourceMap: 'inline',
+		},
+		plugins: [
+			eslint({
+				exclude: 'src/styles/**'
+			}),
+			babel({
+				exclude: 'node_modules/**',
+			})
+		]
+	},
+
+  inline: {
+		input: 'src/index.js',
+		output: {
+      name: 'karbon',
+			file: 'dist/karbon.iife.min.js',
+			format: 'iife',
+			sourceMap: 'inline',
+		},
+		plugins: [
+			eslint({
+				exclude: 'src/styles/**'
+			}),
+			babel({
+				exclude: 'node_modules/**',
+			}),
+			stripCode({
+				start_comment: 'START.DEV_ONLY',
+				end_comment: 'END.DEV_ONLY'
+			}),
+			uglify()
+		]
+	},
+
 	dist: {
 		input: 'src/index.js',
 		output: {
@@ -71,5 +113,7 @@ const configs = {
 export default [
 	configs.dev,
 	configs.prod,
-	configs.dist
+	configs.dist,
+  configs.inlineDev,
+  configs.inline
 ];

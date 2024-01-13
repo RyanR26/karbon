@@ -461,6 +461,7 @@ var createRunTime = function createRunTime(app, appId) {
 
 				case 'control':
 					{
+
 						var condition = !!msgPayload.if;
 						var conditionPayloadIsArray = isArray(msgPayload[condition]);
 						var conditionPayload = conditionPayloadIsArray ? msgPayload[condition][0] : msgPayload[condition];
@@ -991,9 +992,13 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		if (lazyCache[cacheKey] === 'error') {
 			if (isFunction(error)) error();
 		} else if (isDefined(lazyCache[cacheKey])) {
-			var _lazy = lazyCache[cacheKey][0];
-			if (lazyCount > 0 && lazyCache[cacheKey] !== 'loading') lazyCount--;
-			if (isFunction(_lazy)) _lazy(lazyCache[cacheKey][1]);
+			if (lazyCache[cacheKey] === 'loading') {
+				if (isFunction(loading)) loading();
+			} else {
+				var _lazy = lazyCache[cacheKey][0];
+				if (lazyCount > 0) lazyCount--;
+				if (isFunction(_lazy)) _lazy(lazyCache[cacheKey][1]);
+			}
 		} else {
 			if (lazyCache[cacheKey] !== 'loading') {
 				if (isFunction(loading)) loading();
@@ -1045,7 +1050,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		}
 
 		creatingBlock = false;
-		nodeOpen(tag, {}, { key: key }, block, props);
+		nodeOpen(tag, { id: key + '-block', class: 'karbon-block' }, { key: key }, block, props);
 		// if creating string render children inside block containing element
 		if (renderProcess === 'toString') {
 			view(props);
@@ -2299,12 +2304,12 @@ var handleSubscriptions = function handleSubscriptions(subs, appId, appTap) {
       });
     }
 
-    action = isArray(sub.action) ? function () {
+    action = isArray(sub.action) ? function (arg) {
       var _sub$action;
 
-      return (_sub$action = sub.action)[0].apply(_sub$action, toConsumableArray(sub.action.slice(1)));
+      return (_sub$action = sub.action)[0].apply(_sub$action, toConsumableArray(sub.action.slice(1)).concat([arg]));
     } : sub.action;
-    var subKey = sub.key || action.name + '_' + (sub.name || 'sub-key').toString().replace(/\s/g, '');
+    var subKey = (sub.key || '') + action.name + '_' + (sub.name || 'sub-key').toString().replace(/\s/g, '');
     sub.key = subKey;
 
     /* START.DEV_ONLY */
@@ -2316,39 +2321,60 @@ var handleSubscriptions = function handleSubscriptions(subs, appId, appTap) {
     if (!sub.name) {
 
       // this subscription action is called whenever the state changes
-      if (isUndefined(sub.when)) {
+      if (isUndefined(sub.when) && isUndefined(sub.watch)) {
         action();
       }
       // this subscription action is called once whenever the state changes and the 'when' condition is met
-      else if (sub.when) {
-          if (!cache[sub.key]) {
-            cache[sub.key] = true;
+      else if (sub.when || !!sub.watch) {
+          if (sub.when || isUndefined(sub.when) && !sub.watch || !!sub.watch && !cache[sub.key]) {
+            cache[sub.key] = {
+              when: sub.when,
+              watch: sub.watch,
+              unmount: null
+            };
             action();
           }
         }
         // this subscription action is called once whenever the state changes and the 'when' condition is not met
         else {
             if (cache[sub.key]) {
-              delete cache[sub.key];
+              if (sub.when === false) {
+                delete cache[sub.key];
+              } else if (sub.watch && sub.watch !== cache[sub.key].watch) {
+                cache[sub.key].watch = sub.watch;
+                action();
+              }
             }
           }
     }
     // function denoted user or custom sub
     else if (isFunction(sub.name)) {
 
-        if (sub.when || isUndefined(sub.when)) {
+        if (sub.when || isUndefined(sub.when) && !sub.watch || !!sub.watch && !cache[sub.key]) {
+
           if (isUndefined(cache[sub.key])) {
             subscription.setCache(sub.key, {
+              when: sub.when,
+              watch: sub.watch,
               unmount: sub.name(action, sub.options)
             });
           }
         } else {
+
           var cachedSub = cache[sub.key];
           if (cachedSub) {
-            if (isFunction(cachedSub.unmount)) {
-              cachedSub.unmount();
+            if (sub.when === false) {
+              if (isFunction(cachedSub.unmount)) {
+                cachedSub.unmount();
+              }
+              delete cache[sub.key];
+            } else if (sub.watch && sub.watch !== cachedSub.watch) {
+              if (isFunction(cachedSub.unmount)) {
+                cachedSub.unmount();
+              }
+              cachedSub.watch = sub.watch;
+              sub.name(action, sub.options);
             }
-            delete cache[sub.key];
           }
         }
 
@@ -2363,7 +2389,7 @@ var handleSubscriptions = function handleSubscriptions(subs, appId, appTap) {
 
           if (sub.when || isUndefined(sub.when)) {
 
-            if (!isDefined(subscription.getCache()[subKey])) {
+            if (isUndefined(cache[sub.key])) {
 
               subscription.addEvent(sub.el || window, sub.name, subKey, action, isArray(sub.action) ? sub.action.slice(1) : undefined);
 
@@ -2373,7 +2399,7 @@ var handleSubscriptions = function handleSubscriptions(subs, appId, appTap) {
               }
               /* END.DEV_ONLY */
             }
-          } else if (isDefined(subscription.getCache()[subKey])) {
+          } else if (cache[sub.key]) {
 
             subscription.removeEvent(sub.el || window, sub.name, subKey);
 
@@ -2515,22 +2541,9 @@ var karbon = function () {
 	};
 }();
 
-var render = void 0;
-var hydrate = void 0;
-var toString = void 0;
-var toStringAsync = void 0;
-
-if (isBrowser() && document.currentScript && 'noModule' in document.currentScript || !isBrowser()) {
-  render = karbon.render.bind(karbon);
-  hydrate = karbon.hydrate.bind(karbon);
-  toString = karbon.toString.bind(karbon);
-  toStringAsync = karbon.toStringAsync.bind(karbon);
-} else {
-  window.karbon = {};
-  window.karbon.render = karbon.render.bind(karbon);
-  window.karbon.hydrate = karbon.hydrate.bind(karbon);
-  window.karbon.toString = karbon.toString.bind(karbon);
-  window.karbon.toStringAsync = karbon.toStringAsync.bind(karbon);
-}
+var render = karbon.render.bind(karbon);
+var hydrate = karbon.hydrate.bind(karbon);
+var toString = karbon.toString.bind(karbon);
+var toStringAsync = karbon.toStringAsync.bind(karbon);
 
 export { render, hydrate, toString, toStringAsync };
