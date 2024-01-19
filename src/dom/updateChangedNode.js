@@ -5,11 +5,11 @@ export const updateChangedNode = (prop, value, node) => {
   switch (prop) {
 
 	case 'class': {
-		node.removeAttribute(prop);
 		if (isString(value) && isNotEmpty(value)) {
 			node.className = value;
 		}
 		else if (isArray(value) && value.length > 0) {
+      node.removeAttribute(prop);
 			node.classList.add(...value.filter(Boolean)); //filter out all empty strings
 		} 
 		break;

@@ -861,7 +861,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		keyName = flags.key;
 		isKeyed = !!keyName;
 
-		vNode = createVNode(tagName, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg, block, blockProps, false);
+		vNode = createVNode(tagName, componentActiveIndexArray[componentActiveIndexArray.length - 1], data, creatingBlock ? rootIndex + 1 : rootIndex, keyName, flags.staticChildren, componentActiveArray[componentActiveArray.length - 1], subscribesToArray[subscribesToArray.length - 1], renderingSvg, block, blockProps, false);
 
 		if (renderProcess === 'creatingHydrationLayer') {
 			Object.keys(vNode.props).map(function (key) {
@@ -982,6 +982,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		subscribesToArray.length = subscribesToArray.length - 1;
 		componentActiveArray.length = componentActiveArray.length - 1;
 		componentActiveIndexArray.length = componentActiveIndexArray.length - 1;
+		console.log(vDomNodesArray);
 	};
 
 	var lazy = function lazy(importModule, lazyComponent, loading, error, time) {
@@ -1011,7 +1012,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 						lazyCache[cacheKey] = [lazyComponent, module];
 						runTime.forceReRender(creatingHydrationLayer);
 						if (isBrowser() && !creatingHydrationLayer) {
-							window.dispatchEvent(new CustomEvent('Lazy_Component_Rendered', { detail: { key: cacheKey } }));
+							window.dispatchEvent(new CustomEvent('Lazy_View_Rendered', { detail: { key: cacheKey } }));
 						}
 					}, time || 0);
 				}).catch(function (error) {
@@ -1019,7 +1020,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 					lazyCache[cacheKey] = 'error';
 					runTime.forceReRender(creatingHydrationLayer);
 					if (isBrowser() && !creatingHydrationLayer) {
-						window.dispatchEvent(new CustomEvent('Lazy_Component_Error', { detail: { key: cacheKey } }));
+						window.dispatchEvent(new CustomEvent('Lazy_View_Error', { detail: { key: cacheKey } }));
 					}
 				});
 			}
@@ -1044,6 +1045,7 @@ var nodeBuilder = function nodeBuilder(runTime, appGlobalActions) {
 		if (!blockCache[key]) {
 			view(props);
 			block = blockVNodes.slice(0);
+			console.log(block);
 			blockCache[key] = block;
 		} else {
 			block = true;
@@ -1148,10 +1150,11 @@ var createFragment = function createFragment(vNodes) {
 	var nodeLevel = 0;
 
 	vNodes.map(function (node) {
+		console.log(node.level);
 		if (node.level === nodeLevel) {
 			blockParentNodeStack.length = blockParentNodeStack.length - 1;
 		} else if (node.level < nodeLevel) {
-			blockParentNodeStack.length = blockParentNodeStack.length - (nodeLevel - node.level);
+			blockParentNodeStack.length = blockParentNodeStack.length - (nodeLevel - node.level) - 1;
 		}
 
 		var element = createDomElement(node);
@@ -1402,12 +1405,12 @@ var updateChangedNode = function updateChangedNode(prop, value, node) {
 
 		case 'class':
 			{
-				node.removeAttribute(prop);
 				if (isString(value) && isNotEmpty(value)) {
 					node.className = value;
 				} else if (isArray(value) && value.length > 0) {
 					var _node$classList;
 
+					node.removeAttribute(prop);
 					(_node$classList = node.classList).add.apply(_node$classList, toConsumableArray(value.filter(Boolean))); //filter out all empty strings
 				}
 				break;
@@ -1873,6 +1876,7 @@ var patch = function patch() {
 					} else if (keyedAction === 'insertNew') {
 						$_currentNode = createDomElement(node);
 						if (node.block) {
+							console.log(createFragment(node.block));
 							$_currentNode.appendChild(createFragment(node.block));
 						}
 						$_parentNode.insertBefore($_currentNode, currentDomNode);
@@ -1996,6 +2000,7 @@ var createView = function createView(appContainer, domNodes, domNodesPrev, chang
 				node.dom = $_currentNode;
 
 				if (node.block) {
+					console.log(createFragment(node.block));
 					$_currentNode.appendChild(createFragment(node.block));
 				}
 			} else {

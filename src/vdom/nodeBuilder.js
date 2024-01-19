@@ -68,7 +68,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 			tagName,
 			componentActiveIndexArray[componentActiveIndexArray.length - 1],
 			data,
-			rootIndex,
+			creatingBlock ? rootIndex + 1 : rootIndex,
 			keyName,
 			flags.staticChildren,
 			componentActiveArray[componentActiveArray.length - 1],
@@ -88,7 +88,7 @@ export const nodeBuilder = (runTime, appGlobalActions) => {
 		}
 
 		if (creatingBlock) {
-			blockVNodes[blockVNodes.length] = vNode;
+      blockVNodes[blockVNodes.length] = vNode;
 			if (!voidedElements[tagName]) {
 				rootIndex++;
 			}
